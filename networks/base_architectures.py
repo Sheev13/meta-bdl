@@ -16,6 +16,7 @@ class MLP(nn.Module):
         self,
         dims: List[int],
         nonlinearity: nn.Module = nn.ReLU(),
+        residual: bool = False,
     ):
         super().__init__()
         net = []
@@ -26,9 +27,19 @@ class MLP(nn.Module):
                 net.append(nonlinearity)
 
         self.net = nn.Sequential(*net)
+        self.residual = residual
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        if self.residual:
+            for layer in self.net:
+                x_next = layer(x)
+                if x.shape[-1] == x_next.shape[-1]:
+                    x = x_next + x
+                else:
+                    x = x_next
+            return x
+        else:
+            return self.net(x)
     
 class CNN(nn.Module):
     def __init__(

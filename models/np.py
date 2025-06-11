@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from networks.set_architectures import DeepSet, TrAgDeepSet, ConvDeepSet, Transformer, TrAgTransformer
+from networks.set_architectures import DeepSet, ConvDeepSet, Transformer
 from networks.base_architectures import MLP
 # from sparse_gp.likelihoods import GaussianLikelihood
 

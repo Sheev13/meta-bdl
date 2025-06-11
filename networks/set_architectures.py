@@ -29,21 +29,6 @@ class DeepSet(nn.Module):
         return raw_output
     
 
-class TrAgDeepSet(DeepSet):
-    def __init__(self, scale_agnostic: bool = False, **kwargs):
-        super().__init__(**kwargs)
-        self.scale_agnostic = scale_agnostic
-
-    def forward(self, X_c, y_c):
-        X_c_scale = torch.tensor([1.0])
-        if self.scale_agnostic:
-            if X_c.shape[0] > 1:
-                X_c_scale = X_c.std(0)
-        X_c_mean = X_c.mean(0)
-        X_c_tilde = (X_c - X_c_mean) / X_c_scale
-        return super().forward(X_c_tilde, y_c) * X_c_scale + X_c_mean
-    
-
 class ConvDeepSet(nn.Module):
     def __init__(self,
                  x_dim=None,
@@ -119,6 +104,7 @@ class ConvDeepSet(nn.Module):
 class Transformer(nn.Module):
     def __init__(self,
                  x_dim=None,
+                 y_dim=None,
                  output_dim=None,
                  width=128,
                  nonlinearity=nn.ReLU(),
@@ -126,7 +112,7 @@ class Transformer(nn.Module):
                 ):
         super().__init__()
 
-        self.tokeniser = MLP([x_dim+1, width])
+        self.tokeniser = MLP([x_dim+y_dim, width])
         num_heads = 8
 
         if width % num_heads < (num_heads + 1 // 2) + 1:
@@ -148,32 +134,13 @@ class Transformer(nn.Module):
             num_layers=num_layers,
         )
 
-        self.decoder = MLP([width, output_dim * x_dim])
+        self.decoder = MLP([width, output_dim])
 
-    def forward(self, X_c, y_c):
-        D_c = torch.cat((X_c, y_c), dim=-1) # shape (batch_size, x_dim+1)
-        D_c_tokens = self.tokeniser(D_c) # shape (batch_size, width)
+    def forward(self, z):
+        D_c_tokens = self.tokeniser(z) # shape (batch_size, width)
         # what we refer to here as batch_size, torch docs for 
         # TransformerEncoderLayer refer to as sequence length. We do not
         # have what they refer to as batch_size, so we unsqueeze instead
         out_tokens = self.transformer(D_c_tokens.unsqueeze(0)).squeeze(0)
 
-        raw_output = self.decoder(out_tokens) # shape (batch_size, output_dim*x_dim)
-
-        return raw_output.mean(0).reshape((-1, D_c.shape[-1]-1)) # shape (output_dim, x_dim)
-        # return raw_output[-1].reshape((-1, D_c.shape[-1]-1)) # shape (output_dim, x_dim)
-    
-
-class TrAgTransformer(Transformer):
-    def __init__(self, scale_agnostic: bool = False, **kwargs):
-        super().__init__(**kwargs)
-        self.scale_agnostic = scale_agnostic
-
-    def forward(self, X_c, y_c):
-        X_c_scale = torch.tensor([1.0])
-        if self.scale_agnostic:
-            if X_c.shape[0] > 1:
-                X_c_scale = X_c.std(0)
-        X_c_mean = X_c.mean(0)
-        X_c_tilde = (X_c - X_c_mean) / X_c_scale
-        return super().forward(X_c_tilde, y_c) * X_c_scale + X_c_mean
+        return self.decoder(out_tokens) # shape (batch_size, output_dim)
