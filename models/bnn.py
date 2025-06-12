@@ -21,6 +21,7 @@ class BDNP(nn.Module):
                  pyramid_inf_net = False,
                  inf_transformer_width: Optional[int] = None,
                  inf_transformer_layers: Optional[int] = None,
+                 inf_net_use_act: bool = False,
                 ):
         super().__init__()
         dims = [x_dim] + hidden_dims + [y_dim]
@@ -57,6 +58,7 @@ class BDNP(nn.Module):
                                          residual=residual,
                                          inf_transformer_width=inf_transformer_width,
                                          inf_transformer_layers=inf_transformer_layers,
+                                         inf_net_use_act=(inf_net_use_act and i!=0)
                                         )
                               )
 
@@ -154,10 +156,18 @@ class BDAP(nn.Module):
                  nonlinearity: nn.Module = nn.ReLU(),
                  use_final_layer_targets: bool = False,
                  use_final_layer_noise: bool = False,
+                 inf_net_use_act: bool = False,
                 ):
         super().__init__()
         self.input_layer = BDNPLayer(x_dim, y_dim, d_in=x_dim, d_out=d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
-        self.bdap_blocks = nn.ModuleList([BDAPBlock(x_dim, y_dim, d_emb, num_heads=num_heads, inf_dims=inf_dims, nonlinearity=nonlinearity) for _ in range(num_blocks)])
+
+        bdap_blocks = []
+        for _ in range(num_blocks):
+            bdap_blocks.append(
+                BDAPBlock(x_dim, y_dim, d_emb, num_heads=num_heads, inf_dims=inf_dims, nonlinearity=nonlinearity, inf_net_use_act=inf_net_use_act)
+            )
+        self.bdap_blocks = nn.ModuleList(bdap_blocks)
+        
         self.prediction_head = BDNPLayer(x_dim,
                                          y_dim,
                                          d_in=d_emb,
@@ -168,6 +178,7 @@ class BDAP(nn.Module):
                                          final_layer=True,
                                          targets_available=use_final_layer_targets,
                                          global_noise=use_final_layer_noise,
+                                         inf_net_use_act=inf_net_use_act,
                                         )
         
         self.likelihood = likelihood

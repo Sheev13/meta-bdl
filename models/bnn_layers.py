@@ -25,6 +25,7 @@ class BDNPLayer(nn.Module):
                  residual: bool = False,
                  inf_transformer_width: Optional[int] = None,
                  inf_transformer_layers: Optional[int] = None,
+                 inf_net_use_act: bool = False,
                 ):
         super().__init__()
 
@@ -48,8 +49,12 @@ class BDNPLayer(nn.Module):
                 out_dims = 2*d_out # regular case of predicting targets and their uncertainties (log sigmas)
             elif global_noise or targets_available:
                 out_dims = d_out # inference network just predicts log sigmas or targets
+            if inf_net_use_act:
+                in_dims = d_in + x_dim + y_dim
+            else:
+                in_dims = x_dim + y_dim
             if inf_transformer_width is None:
-                self.inf_net = MLP([x_dim + y_dim] + inf_dims + [out_dims], nonlinearity=nonlinearity, residual=False)
+                self.inf_net = MLP([in_dims] + inf_dims + [out_dims], nonlinearity=nonlinearity, residual=False)
             else:
                 assert inf_transformer_layers is not None
                 self.inf_net = Transformer(x_dim=x_dim,
@@ -72,6 +77,7 @@ class BDNPLayer(nn.Module):
         self.prev_W = None
         self.prev_q_w = None
         self.residual = residual and (self.d_in == self.d_out)
+        self.inf_net_use_act = inf_net_use_act
 
     def compute_posterior(self, X, Y, log_sigmas, layerwise_conditional_prior=None, update_prev=False):
         if update_prev and self.final_layer:
@@ -119,7 +125,13 @@ class BDNPLayer(nn.Module):
             if Xc is None or Yc is None or Xc_prev_l is None:
                 raise ValueError("User must specify either all three of Xc, Yc, Xc_prev_l or none of them to each layer.")
             
-            z = torch.cat((Xc, Yc), dim=-1) # shape (N, x_dim+y_dim)
+            if self.inf_net_use_act:
+                Xc_rep = Xc.unsqueeze(0).repeat((num_samples, 1, 1))
+                Yc_rep = Yc.unsqueeze(0).repeat((num_samples, 1, 1))
+                z = torch.cat((Xc_rep, Xc_prev_l, Yc_rep), dim=-1) # shape (num_samples, N, x_dim+y_dim+d_in)
+            else:
+                z = torch.cat((Xc, Yc), dim=-1) # shape (N, x_dim+y_dim)
+
             if self.targets_available and self.global_noise:
                 Yc_l = Yc
                 if output_log_sigmas is None:
@@ -132,9 +144,9 @@ class BDNPLayer(nn.Module):
                 Yc_l = self.inf_net(z)
                 if output_log_sigmas is None:
                     raise ValueError("User must specify the observation noise if using global_noise=True.")
-                log_sigmas = output_log_sigmas.unsqueeze(0).repeat(Xc.shape[0], 1) # shape (N, y_dim)
+                log_sigmas = output_log_sigmas.unsqueeze(0).repeat(Xc.shape[0], 1) # shape (N, y_dim) or (num_samples, N, y_dim)
             else:
-                Yc_l, log_sigmas = self.inf_net(z).chunk(chunks=2, dim=-1) # each of shape (N, y_dim)
+                Yc_l, log_sigmas = self.inf_net(z).chunk(chunks=2, dim=-1) # each of shape (N, y_dim) or (num_samples, N, y_dim)
                 log_sigmas = log_sigmas - 2
             
             # handle nonlinearities and biases for context inputs
@@ -143,6 +155,8 @@ class BDNPLayer(nn.Module):
             else:
                 Xc_prev_l_phi = torch.cat((self.nonlinearity(Xc_prev_l), torch.ones((*Xc_prev_l.shape[:2], 1))), dim=-1)
 
+            if len(Yc_l.shape) == 3 and len(log_sigmas.shape) == 2:
+                log_sigmas = log_sigmas.unsqueeze(0).repeat((num_samples, 1, 1))
             q_w = self.compute_posterior(Xc_prev_l_phi, Yc_l, log_sigmas, layerwise_conditional_prior=layerwise_conditional_prior, update_prev=update_prev)
         if update_prev and not self.final_layer:
             W = self.prev_W
@@ -213,16 +227,17 @@ class BDAPLayer(nn.Module):
                  inf_dims: Optional[List[int]]=None,
                 #  inf_transformer_width: Optional[int] = None,
                 #  inf_transformer_layers: Optional[int] = None,
+                inf_net_use_act: bool = False,
                 ):
         super().__init__()
         if d_emb % num_heads != 0:
             raise ValueError("Transformer embedding dimension must be divisible by the number of heads.")
         d_head = d_emb // num_heads
 
-        self.q_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
-        self.k_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
-        self.v_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
-        self.out_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
+        self.q_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity(), inf_net_use_act=inf_net_use_act)
+        self.k_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity(), inf_net_use_act=inf_net_use_act)
+        self.v_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity(), inf_net_use_act=inf_net_use_act)
+        self.out_proj = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity(), inf_net_use_act=inf_net_use_act)
 
         self.x_dim = x_dim
         self.y_dim = y_dim
@@ -331,13 +346,14 @@ class BDAPBlock(nn.Module):
                  nonlinearity: nn.Module = nn.ReLU(),
                 #  inf_transformer_width: Optional[int] = None,
                 #  inf_transformer_layers: Optional[int] = None,
+                inf_net_use_act: bool = False,
                 ):
         super().__init__()
-        self.bdap_layer = BDAPLayer(x_dim, y_dim, d_emb, num_heads=num_heads, inf_dims=inf_dims)
+        self.bdap_layer = BDAPLayer(x_dim, y_dim, d_emb, num_heads=num_heads, inf_dims=inf_dims, inf_net_use_act=inf_net_use_act)
         self.ln1 = nn.LayerNorm(d_emb)
         self.ln2 = nn.LayerNorm(d_emb)
-        self.lin1 = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity())
-        self.lin2 = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nonlinearity)
+        self.lin1 = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nn.Identity(), inf_net_use_act=inf_net_use_act)
+        self.lin2 = BDNPLayer(x_dim, y_dim, d_emb, d_emb, prior_type=1, inf_dims=inf_dims, nonlinearity=nonlinearity, inf_net_use_act=inf_net_use_act)
 
 
     def trainable_prior(self, flag, just_mean=False):

@@ -5,13 +5,18 @@ from .tensors import stable_inversion
 def compute_unitwise_posteriors(X, Y, log_sigmas, prior):
     # X should have already been passed through a nonlinearity
     # X is shape (samples, N, d_in+1)
-    # Y and log_sigmas are both shape (N, d_out)
+    # Y and log_sigmas are both shape (N, d_out) or shape (samples, N, d_out) (the latter if inf_net_use_act==True)
     diagonal = False
     if isinstance(prior, torch.distributions.Normal):
         diagonal = True
     
-    Lambda_d_l = (1 / ((2*log_sigmas).exp()+1e-6)).transpose(-2, -1).diag_embed() # shape (d_out, N, N)
+    Lambda_d_l = (1 / ((2*log_sigmas).exp()+1e-6)).transpose(-2, -1).diag_embed() # shape (d_out, N, N) or (samples, d_out, N, N)
+    if len(Lambda_d_l.shape) == 2:
+        Lambda_d_l = Lambda_d_l.unsqueeze(0)
     mu_d_l = prior.mean # shape (d_out, d_in+1)
+
+    if len(Y.shape) == 2:
+        Y = Y.unsqueeze(0)
 
     if diagonal:
         Sigma_d_l = prior.variance.diag_embed() # shape (d_out, d_in+1, d_in+1)
@@ -23,9 +28,9 @@ def compute_unitwise_posteriors(X, Y, log_sigmas, prior):
     if len(Sigma_d_l_inv) == 3:
         Sigma_d_l_inv = Sigma_d_l_inv.unsqueeze(0)
 
-    S_d_l_inv = Sigma_d_l_inv + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l.unsqueeze(0) @ X.unsqueeze(1) # shape (samples, d_out, d_in+1, d_in_+1)
+    S_d_l_inv = Sigma_d_l_inv + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l @ X.unsqueeze(1) # shape (samples, d_out, d_in+1, d_in_+1)
     S_d_l = stable_inversion(S_d_l_inv) # shape (samples, d_out, d_in+1, d_in+1)
-    m_d_l = (S_d_l @ (Sigma_d_l_inv @ mu_d_l.unsqueeze(-1) + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l.unsqueeze(0) @ Y.transpose(-2, -1).unsqueeze(0).unsqueeze(-1))).squeeze(-1)
+    m_d_l = (S_d_l @ (Sigma_d_l_inv @ mu_d_l.unsqueeze(-1) + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l @ Y.transpose(-2, -1).unsqueeze(-1))).squeeze(-1)
     # m_d_l is shape (samples, d_out, d_in+2)
     return torch.distributions.MultivariateNormal(m_d_l, S_d_l) # object shape (samples, d_out, d_in+1)
 
