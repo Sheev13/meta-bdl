@@ -1,0 +1,29 @@
+{
+    "num_datasets": 10000,
+    "n_range": [
+        40,
+        100
+    ],
+    "function_type": "heaviside",
+    "architecture": [
+        50,
+        50,
+        50
+    ],
+    "nonlinearity": "sigmoid",
+    "residual": false,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "use_act": false,
+    "training_steps": 10000,
+    "batch_size": 5,
+    "learning_rate": 0.001,
+    "final_learning_rate": 5e-05,
+    "loss_function": "npvi",
+    "release_prior_at_step": 10,
+    "ctxt_proportion_range": [
+        0.5,
+        0.9
+    ],
+    "train_new_model": true
+}

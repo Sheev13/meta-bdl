@@ -14,7 +14,7 @@ class MetaDataset(Dataset):
         return self.datasets[idx]
 
 
-def ctxt_trgt_split(X: torch.Tensor, y: torch.Tensor, ctxt_proportion_range: Tuple[float], ctxt_proportion: Optional[float] = None):
+def ctxt_trgt_split(X: torch.Tensor, y: torch.Tensor, ctxt_proportion_range: Optional[Tuple[float]]=None, ctxt_proportion: Optional[float] = None):
     if ctxt_proportion is None:
         if ctxt_proportion_range[1] < ctxt_proportion_range[0]:
             ctxt_proportion_range = ctxt_proportion_range[::-1]
