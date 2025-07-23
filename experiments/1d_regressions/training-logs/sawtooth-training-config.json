@@ -6,14 +6,14 @@
     ],
     "function_type": "sawtooth",
     "architecture": [
-        50,
-        50,
-        50
+        250,
+        250,
+        250
     ],
     "nonlinearity": "relu",
     "residual": false,
-    "transformer_layers": 2,
-    "transformer_width": 64,
+    "transformer_layers": null,
+    "transformer_width": null,
     "use_act": false,
     "training_steps": 10000,
     "batch_size": 5,
@@ -25,5 +25,6 @@
         0.5,
         0.9
     ],
-    "train_new_model": true
+    "train_new_model": true,
+    "use_gpu": false
 }

@@ -36,7 +36,7 @@ def train_meta_model(
     
     # set device to gpu if user wants to and one is available.
     if device_agnostic:
-        device = model.get_device()
+        device = next(model.parameters()).device
     else:
         if use_gpu:
             if torch.cuda.is_available():
