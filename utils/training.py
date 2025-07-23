@@ -18,6 +18,7 @@ def train_meta_model(
     final_learning_rate: Optional[float] = None,
     max_gradient: Optional[float] = None,
     use_gpu: bool = False,
+    device_agnostic: bool = False,
     loss_function: str = 'vi', # one of 'vi', 'npvi', 'npml'
     ctxt_proportion_range: Tuple[float] = (0.4, 0.8),
     es_thresh: Optional[float] = None,
@@ -34,22 +35,25 @@ def train_meta_model(
         raise ValueError(f"Loss function: {loss_function} not recognised.")
     
     # set device to gpu if user wants to and one is available.
-    if use_gpu:
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        elif torch.backends.mps.is_available():
-            device = torch.device('mps')
-        else:
-            print("No GPU found, falling back to CPU")
-            device = torch.device('cpu')
-        torch.set_default_device(device)
-        torch.set_default_dtype(torch.float32)
-        model.to(device, dtype=torch.float32)
-        print("Moving dataset to device...")
-        md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
-        print("Done.")
+    if device_agnostic:
+        device = model.get_device()
     else:
-        device = torch.device('cpu')
+        if use_gpu:
+            if torch.cuda.is_available():
+                device = torch.device('cuda')
+            elif torch.backends.mps.is_available():
+                device = torch.device('mps')
+            else:
+                print("No GPU found, falling back to CPU")
+                device = torch.device('cpu')
+            torch.set_default_device(device)
+            torch.set_default_dtype(torch.float32)
+            model.to(device, dtype=torch.float32)
+            print("Moving dataset to device...")
+            md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
+            print("Done.")
+        else:
+            device = torch.device('cpu')
         
     meta_dataset = MetaDataset(md)
 
@@ -184,15 +188,18 @@ def train_meta_model(
             loss_window[0] = - batch_loss.detach().item()
             if loss_window.mean() > es_thresh:
                 break
-        
-    # return model to cpu if relevant.
-    if use_gpu and (torch.cuda.is_available() or torch.backends.mps.is_available()):
-        print("Returning model and data to CPU.")
-        cpu_device = torch.device('cpu')
-        torch.set_default_device(cpu_device)
-        torch.set_default_dtype(torch.float64)
-        model.to(cpu_device)
-        model.to(dtype=torch.float64)
+    
+    if device_agnostic:
+        pass
+    else:
+        # return model to cpu if relevant.
+        if use_gpu and (torch.cuda.is_available() or torch.backends.mps.is_available()):
+            print("Returning model and data to CPU.")
+            cpu_device = torch.device('cpu')
+            torch.set_default_device(cpu_device)
+            torch.set_default_dtype(torch.float64)
+            model.to(cpu_device)
+            model.to(dtype=torch.float64)
 
     return tracker
 

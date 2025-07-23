@@ -16,9 +16,6 @@ from utils.data_utils import ctxt_trgt_split, obtain_me_a_nice_sawtooth_dataset_
 from networks.base_architectures import Sin
 
 
-torch.set_default_dtype(torch.float64)
-
-
 def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sawtooth', x_range=[-5.0, 5.0]):
     md = []
     assert function_type.lower() in ['sawtooth', 'gp', 'heaviside']
@@ -91,8 +88,22 @@ def main(
         release_prior_at_step=10,
         ctxt_proportion_range=(0.5, 0.9),
         train_new_model=False,
+        use_gpu=True,
 ):
     args_dict = locals()
+
+    if use_gpu:
+            if torch.cuda.is_available():
+                device = torch.device('cuda')
+            else:
+                print("No GPU found, falling back to CPU")
+                device = torch.device('cpu')
+            torch.set_default_device(device)
+            torch.set_default_dtype(torch.float32)
+            # model.to(device, dtype=torch.float32)
+            # print("Moving dataset to device...")
+            # md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
+            # print("Done.")
 
     PATH = str(Path(__file__).resolve().parent)
     print(PATH)
@@ -127,6 +138,7 @@ def main(
             loss_function=loss_function,
             release_prior_at_step=release_prior_at_step,
             ctxt_proportion_range=ctxt_proportion_range,
+            device_agnostic=True,
         )
 
         torch.save(bdnp, PATH + f'/saved_models/bdnp-{function_type}')
@@ -191,7 +203,7 @@ def main(
         plt.savefig(PATH + f"/figs/{function_type}/pngs/one-point-predictive-{i}.png", bbox_inches="tight")
         plt.close()
 
-    # mutliple-datapoint samples:
+    # multiple-datapoint samples:
     n_range=[2, 10]
     if function_type == 'sawtooth':
         n_range = [10, 40]
@@ -237,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('--release_prior_at_step', type=int, default=10, help='Training step at which prior parameters start being optimised')
     parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.5, 0.9], help='Range of context set/full set proportion for each sampled task')
     parser.add_argument('--train_new_model', action='store_true', help='Train a new BDNP, or load a pre-trained one.')
+    parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
 
     args = parser.parse_args()
     main(**vars(args))
