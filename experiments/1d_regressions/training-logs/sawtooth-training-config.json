@@ -6,9 +6,9 @@
     ],
     "function_type": "sawtooth",
     "architecture": [
-        250,
-        250,
-        250
+        500,
+        500,
+        500
     ],
     "nonlinearity": "relu",
     "residual": false,
@@ -17,8 +17,8 @@
     "use_act": false,
     "training_steps": 10000,
     "batch_size": 5,
-    "learning_rate": 0.001,
-    "final_learning_rate": 5e-05,
+    "learning_rate": 0.0001,
+    "final_learning_rate": 1e-05,
     "loss_function": "npvi",
     "release_prior_at_step": 10,
     "ctxt_proportion_range": [
@@ -26,5 +26,5 @@
         0.9
     ],
     "train_new_model": true,
-    "use_gpu": false
+    "use_gpu": true
 }

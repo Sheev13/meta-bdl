@@ -93,17 +93,18 @@ def main(
     args_dict = locals()
 
     if use_gpu:
-            if torch.cuda.is_available():
-                device = torch.device('cuda')
-            else:
-                print("No GPU found, falling back to CPU")
-                device = torch.device('cpu')
-            torch.set_default_device(device)
-            torch.set_default_dtype(torch.float32)
-            # model.to(device, dtype=torch.float32)
-            # print("Moving dataset to device...")
-            # md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
-            # print("Done.")
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        else:
+            print("No GPU found, falling back to CPU")
+            device = torch.device('cpu')
+        torch.set_default_device(device)
+        torch.set_default_dtype(torch.float32)
+        print("device type: ", device)
+        # model.to(device, dtype=torch.float32)
+        # print("Moving dataset to device...")
+        # md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
+        # print("Done.")
 
     PATH = str(Path(__file__).resolve().parent)
     print(PATH)
