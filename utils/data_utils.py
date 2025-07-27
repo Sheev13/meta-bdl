@@ -67,7 +67,7 @@ def obtain_me_a_nice_sawtooth_dataset_please(x_range=[-4.0, 4.0], n_range=[5, 10
         s = torch.rand(1) * p  # random shift in [0, p)
     else:
         s = 0
-    f_x = m * (torch.remainder(X + s, p) - 0.5)
+    f_x = m * (torch.remainder(X + s, p) - 0.5*p)
 
     y = f_x + torch.randn_like(f_x) * noise
     return X, y

@@ -6,12 +6,12 @@
     ],
     "function_type": "sawtooth",
     "architecture": [
-        500,
-        500,
-        500
+        256,
+        256,
+        256
     ],
     "nonlinearity": "relu",
-    "residual": false,
+    "residual": true,
     "transformer_layers": null,
     "transformer_width": null,
     "use_act": false,

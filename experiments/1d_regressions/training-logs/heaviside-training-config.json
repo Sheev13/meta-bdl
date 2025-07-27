@@ -1,29 +1,30 @@
 {
-    "num_datasets": 10000,
+    "num_datasets": 100000,
     "n_range": [
-        40,
+        20,
         100
     ],
     "function_type": "heaviside",
     "architecture": [
         50,
-        50,
         50
     ],
-    "nonlinearity": "sigmoid",
+    "nonlinearity": "tanh",
     "residual": false,
     "transformer_layers": null,
     "transformer_width": null,
     "use_act": false,
-    "training_steps": 10000,
+    "training_steps": 20000,
     "batch_size": 5,
     "learning_rate": 0.001,
     "final_learning_rate": 5e-05,
-    "loss_function": "npvi",
-    "release_prior_at_step": 10,
+    "loss_function": "p-avi",
+    "num_samples": 8,
+    "release_prior_at_step": 100,
     "ctxt_proportion_range": [
-        0.5,
+        0.7,
         0.9
     ],
-    "train_new_model": true
+    "train_new_model": true,
+    "use_gpu": true
 }

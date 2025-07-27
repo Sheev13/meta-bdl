@@ -29,7 +29,7 @@ def compute_unitwise_posteriors(X, Y, log_sigmas, prior):
         Sigma_d_l_inv = Sigma_d_l_inv.unsqueeze(0)
 
     S_d_l_inv = Sigma_d_l_inv + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l @ X.unsqueeze(1) # shape (samples, d_out, d_in+1, d_in_+1)
-    S_d_l = stable_inversion(S_d_l_inv) # shape (samples, d_out, d_in+1, d_in+1)
+    S_d_l = stable_inversion(S_d_l_inv) + torch.eye(S_d_l_inv.shape[-1]).unsqueeze(0).unsqueeze(0)*0.00001 # shape (samples, d_out, d_in+1, d_in+1)
     m_d_l = (S_d_l @ (Sigma_d_l_inv @ mu_d_l.unsqueeze(-1) + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l @ Y.transpose(-2, -1).unsqueeze(-1))).squeeze(-1)
     # m_d_l is shape (samples, d_out, d_in+2)
     return torch.distributions.MultivariateNormal(m_d_l, S_d_l) # object shape (samples, d_out, d_in+1)

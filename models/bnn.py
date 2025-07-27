@@ -125,9 +125,14 @@ class BDNP(nn.Module):
     def minibatched_posterior_sample(self, context_dataloader):
         pass
 
-    def loss(self, Xc, Yc, Xt, Yt, num_samples=1, use_kl=True):
+    def loss(self, Xc, Yc, Xt, Yt, num_samples=1, use_kl=True, logsumexp=False, **kwargs):
         pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=use_kl, num_samples=num_samples)
-        e_ll = self.likelihood.log_prob(pred_t, Yt).mean(0).sum() # average over samples, sum over batch
+        if logsumexp: # log-sum-exp over samples, sum over batch
+            # estimates log expected likelihood (i.e. log posterior predictive)
+            e_ll = (self.likelihood.log_prob(pred_t, Yt).logsumexp(0) - torch.tensor(num_samples).log()).sum()
+        else:
+            # estimates expected log likelihood
+            e_ll = self.likelihood.log_prob(pred_t, Yt).mean(0).sum() # average over samples, sum over batch
         elbo = e_ll - kl
 
         metrics = {

@@ -22,7 +22,7 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
 
     if function_type.lower() == 'sawtooth':
         dataset_func = obtain_me_a_nice_sawtooth_dataset_please
-        data_hypers = {'p': 1.0, 'random_shift': True, 'random_gradient': False, 'x_range': x_range}
+        data_hypers = {'p': 3.0, 'random_shift': True, 'random_gradient': False, 'x_range': x_range}
     elif function_type.lower() == 'gp':
         dataset_func = obtain_me_a_nice_gp_dataset_please
         data_hypers = {'l': 0.5, 'kernel': 'se', 'x_range': x_range}
@@ -84,9 +84,10 @@ def main(
         batch_size=5,
         learning_rate=1e-3,
         final_learning_rate=5e-5,
-        loss_function='npvi',
-        release_prior_at_step=10,
-        ctxt_proportion_range=(0.5, 0.9),
+        loss_function='p-avi',
+        num_samples=1,
+        release_prior_at_step=0,
+        ctxt_proportion_range=(0.7, 0.9),
         train_new_model=False,
         use_gpu=True,
 ):
@@ -125,7 +126,7 @@ def main(
             residual=residual,
             transformer_layers=transformer_layers,
             transformer_width=transformer_width,
-            use_act=use_act
+            use_act=use_act,
         )
 
         training_metrics = train_meta_model(
@@ -135,7 +136,7 @@ def main(
             batch_size=batch_size,
             learning_rate=learning_rate,
             final_learning_rate=final_learning_rate,
-            num_samples=1,
+            num_samples=num_samples,
             loss_function=loss_function,
             release_prior_at_step=release_prior_at_step,
             ctxt_proportion_range=ctxt_proportion_range,
@@ -176,7 +177,7 @@ def main(
     with torch.no_grad():
         prior_samps = bdnp(xs, None, None, num_samples=samps)[0]
 
-    plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T, prior_samps.squeeze(-1).T, linewidth=0.5, color='C0', alpha=0.5)
+    plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T.cpu(), prior_samps.squeeze(-1).T.cpu(), linewidth=0.5, color='C0', alpha=0.5)
     plt.grid()
     plt.xlim([-4.0, 4.0])
     plt.ylim([-4.0, 4.0])
@@ -195,8 +196,8 @@ def main(
         with torch.no_grad():
             pred_samps = bdnp(xs, X_c, y_c, num_samples=samps)[0]
         
-        plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T, pred_samps.squeeze(-1).T, linewidth=0.5, color='C0', alpha=0.5)
-        plt.scatter(X_c, y_c, color='C1', zorder=10000)
+        plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T.cpu(), pred_samps.squeeze(-1).T.cpu(), linewidth=0.5, color='C0', alpha=0.5)
+        plt.scatter(X_c.cpu(), y_c.cpu(), color='C1', zorder=10000)
         plt.grid()
         plt.xlim([-4.0, 4.0])
         plt.ylim([-4.0, 4.0])
@@ -218,8 +219,8 @@ def main(
         with torch.no_grad():
             pred_samps = bdnp(xs, X_c, y_c, num_samples=samps)[0]
         
-        plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T, pred_samps.squeeze(-1).T, linewidth=0.5, color='C0', alpha=0.5)
-        plt.scatter(X_c, y_c, color='C1', zorder=10000)
+        plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T.cpu(), pred_samps.squeeze(-1).T.cpu(), linewidth=0.5, color='C0', alpha=0.5)
+        plt.scatter(X_c.cpu(), y_c.cpu(), color='C1', zorder=10000)
         plt.grid()
         plt.xlim([-4.0, 4.0])
         plt.ylim([-4.0, 4.0])
@@ -233,8 +234,8 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BDNP experiment 1")
 
-    parser.add_argument('--num_datasets', type=int, default=10_000, help='Number of datasets in meta-dataset')
-    parser.add_argument('--n_range', type=int, nargs='+', default=[40, 100], help='Range of datapoints in each dataset')
+    parser.add_argument('--num_datasets', type=int, default=100_000, help='Number of datasets in meta-dataset')
+    parser.add_argument('--n_range', type=int, nargs='+', default=[20, 100], help='Range of datapoints in each dataset')
     parser.add_argument('--function_type', type=str, default='sawtooth', help='Type of function/dataset')
     parser.add_argument('--architecture', type=int, nargs='+', default=[250, 250, 250], help='Hidden layer dims of BDNP and inference nets')
     parser.add_argument('--nonlinearity', type=str, default='relu', help='Elementwise-acting nonlinearity')
@@ -242,13 +243,14 @@ if __name__ == "__main__":
     parser.add_argument('--transformer_layers', type=int, default=None, help='Number of attention blocks in AttBDNP inference nets')
     parser.add_argument('--transformer_width', type=int, default=None, help='Representation dimension of AttBNDP inference nets')
     parser.add_argument('--use_act', action='store_true', help='Pass current layer activations to inference nets?')
-    parser.add_argument('--training_steps', type=int, default=10_000, help='The number of training steps')
+    parser.add_argument('--training_steps', type=int, default=20_000, help='The number of training steps')
     parser.add_argument('--batch_size', type=int, default=5, help='Number of datasets used to estimate objective at each step')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
-    parser.add_argument('--loss_function', type=str, default='npvi', help='Objective function (vi or npvi)')
-    parser.add_argument('--release_prior_at_step', type=int, default=10, help='Training step at which prior parameters start being optimised')
-    parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.5, 0.9], help='Range of context set/full set proportion for each sampled task')
+    parser.add_argument('--loss_function', type=str, default='p-avi', help='Objective function (vi or npvi)')
+    parser.add_argument('--num_samples', type=int, default=8, help='Number of MC samples to estimate expected log likelihood.')
+    parser.add_argument('--release_prior_at_step', type=int, default=100, help='Training step at which prior parameters start being optimised')
+    parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.7, 0.9], help='Range of context set/full set proportion for each sampled task')
     parser.add_argument('--train_new_model', action='store_true', help='Train a new BDNP, or load a pre-trained one.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
 

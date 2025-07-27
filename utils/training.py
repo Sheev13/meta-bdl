@@ -4,6 +4,7 @@ from tqdm import tqdm
 from typing import Optional, Dict, Tuple, List
 from collections import defaultdict
 import warnings
+import sys
 
 from .data_utils import MetaDataset, ctxt_trgt_split
 
@@ -31,7 +32,7 @@ def train_meta_model(
     ctxt_anneal_end_proportion: float = 0.5,
 ) -> Dict:
     
-    if loss_function not in ['vi', 'npvi', 'npml']:
+    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'mpl']:
         raise ValueError(f"Loss function: {loss_function} not recognised.")
     
     # set device to gpu if user wants to and one is available.
@@ -97,7 +98,7 @@ def train_meta_model(
 
     # initialise metrics tracker.
     tracker = defaultdict(list)
-    pbar = tqdm(range(training_steps))
+    pbar = tqdm(range(training_steps), file=sys.stdout)
     
     # main training loop here.
     for training_step in pbar:
@@ -136,19 +137,37 @@ def train_meta_model(
                 b_inds = torch.randperm(X.shape[0])[:b]
                 X, y = X[b_inds], y[b_inds]
 
-            if loss_function == 'vi':
+            if loss_function == 'avi':
                 X_c, y_c, X_t, y_t = X, y, X, y
             else:
                 X_c, y_c, _, _ = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
                 X_t, y_t = X, y
-            if loss_function == 'npml':
-                loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False)
-            else:
+            if loss_function == 'npml': # neural process maximum likelihood (expected log likelihood if sampling)
+                try:
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False)
+                except ValueError:
+                    print("Handled Value Error")
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False)
+            elif loss_function == 'mpl': # maximum predictive likelihood (log expected likelihood if sampling)
+                try:
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True)
+                except ValueError:
+                    print("Handled Value Error")
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True)
+            elif loss_function == 'npvi': # neural process variational inference (i.e. KL is between two approx. posteriors)
+                try:
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
+                except ValueError:
+                    print("Handled Value Error")
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
+            elif loss_function == 'p-avi' or loss_function == 'avi': # predictive amortised VI or amortised VI
                 try:
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples)
                 except ValueError:
                     print("Handled Value Error")
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples)
+            else:
+                raise ValueError(f"Unrecognised loss function: {loss_function}.")
 
             batch_loss += loss / batch_size
             for key, value in metrics.items():
