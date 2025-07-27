@@ -86,7 +86,7 @@ def main(
         final_learning_rate=5e-5,
         loss_function='p-avi',
         num_samples=1,
-        release_prior_at_step=0,
+        release_prior_at_step=100,
         ctxt_proportion_range=(0.7, 0.9),
         train_new_model=False,
         use_gpu=True,
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--loss_function', type=str, default='p-avi', help='Objective function (vi or npvi)')
     parser.add_argument('--num_samples', type=int, default=8, help='Number of MC samples to estimate expected log likelihood.')
-    parser.add_argument('--release_prior_at_step', type=int, default=100, help='Training step at which prior parameters start being optimised')
+    parser.add_argument('--release_prior_at_step', type=int, default=50, help='Training step at which prior parameters start being optimised')
     parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.7, 0.9], help='Range of context set/full set proportion for each sampled task')
     parser.add_argument('--train_new_model', action='store_true', help='Train a new BDNP, or load a pre-trained one.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
