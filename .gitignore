@@ -1,1 +1,2 @@
-experiments/1d_regressions/saved_models
+*saved_models/
+*batch_logs/

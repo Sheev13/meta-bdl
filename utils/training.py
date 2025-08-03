@@ -32,7 +32,7 @@ def train_meta_model(
     ctxt_anneal_end_proportion: float = 0.5,
 ) -> Dict:
     
-    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'mpl']:
+    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'po-avi', 'mpl']:
         raise ValueError(f"Loss function: {loss_function} not recognised.")
     
     # set device to gpu if user wants to and one is available.
@@ -139,6 +139,8 @@ def train_meta_model(
 
             if loss_function == 'avi':
                 X_c, y_c, X_t, y_t = X, y, X, y
+            elif loss_function == 'po-avi':
+                X_c, y_c, X_t, y_t = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
             else:
                 X_c, y_c, _, _ = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
                 X_t, y_t = X, y
@@ -160,7 +162,7 @@ def train_meta_model(
                 except ValueError:
                     print("Handled Value Error")
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
-            elif loss_function == 'p-avi' or loss_function == 'avi': # predictive amortised VI or amortised VI
+            elif 'avi' in loss_function: # AVI, P-AVI, or PO-AVI
                 try:
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples)
                 except ValueError:
@@ -228,38 +230,40 @@ def train_meta_model(
 
 
 
-def train_gp(
+
+def train_variational_model(
     model,
-    X: torch.Tensor,
-    y: torch.Tensor,
-    epochs: int = 100,
+    dataset: Tuple[torch.Tensor],
+    training_steps: Optional[int] = None,
     learning_rate: float = 1e-2,
+    num_samples: int = 1,
     final_learning_rate: Optional[float] = None,
     max_gradient: Optional[float] = None,
     use_gpu: bool = False,
-    silent: bool = False,
-    svgp: bool = False,
-    num_samples: int = 1,
-) -> torch.Tensor:
+    device_agnostic: bool = False,
+    es_thresh: Optional[float] = None,
+) -> Dict:
     
-
     # set device to gpu if user wants to and one is available.
-    if use_gpu:
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        elif torch.backends.mps.is_available():
-            device = torch.device('mps')
-        else:
-            print("No GPU found, falling back to CPU")
-            device = torch.device('cpu')
-        torch.set_default_device(device)
-        model.to(device)
-        print("Moving dataset to device...")
-        X = X.to(device)
-        t = t.to(device)
-        print("Done.")
+    if device_agnostic:
+        device = next(model.parameters()).device
     else:
-        device = torch.device('cpu')
+        if use_gpu:
+            if torch.cuda.is_available():
+                device = torch.device('cuda')
+            elif torch.backends.mps.is_available():
+                device = torch.device('mps')
+            else:
+                print("No GPU found, falling back to CPU")
+                device = torch.device('cpu')
+            torch.set_default_device(device)
+            torch.set_default_dtype(torch.float32)
+            model.to(device, dtype=torch.float32)
+            print("Moving dataset to device...")
+            dataset = (X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32))
+            print("Done.")
+        else:
+            device = torch.device('cpu')
 
     # initialise optimiser and learning rate scheduler.
     optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -268,61 +272,179 @@ def train_gp(
     else:
         end_factor = 1.0
     lr_sched = torch.optim.lr_scheduler.LinearLR(
-        optimiser, start_factor=1.0, end_factor=end_factor, total_iters=epochs
+        optimiser, start_factor=1.0, end_factor=end_factor, total_iters=training_steps
     )
+
+    if es_thresh is not None:
+        loss_window = - torch.ones((100,)) * 1e-4
 
     # initialise metrics tracker.
     tracker = defaultdict(list)
-    pbar = tqdm(range(epochs), disable=silent)
+    pbar = tqdm(range(training_steps), file=sys.stdout)
     
-    # main training loop here.
-    for _ in pbar:
-    
-        # compute loss and gradients.
-        optimiser.zero_grad()
-        if svgp:
-            try:
-                loss, metrics = model.loss(X, y, X, y, num_samples=num_samples)
-            except ValueError:
-                # print("Handled Value Error")
-                loss, metrics = model.loss(X, y, X, y, num_samples=num_samples)
-            # loss, metrics = model.loss(
-            #     X, y, X, y, num_samples=num_samples
-            # )
-        else:
-            loss, metrics = model.loss(
-                X,
-                y,
-            )
+    X, Y = dataset
 
-        loss.backward()
+    # main training loop here.
+    for training_step in pbar:
+
+        optimiser.zero_grad()
+        try:
+            loss, metrics = model.loss(X, Y, num_samples=num_samples)
+        except ValueError:
+            print("Handled Value Error")
+            loss, metrics = model.loss(X, Y, num_samples=num_samples)
         
+        loss.backward()
+
         # clip gradients if desired.
         if max_gradient is not None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_gradient) 
+        # handle any NaN gradients
+
         for p in model.parameters():
             if p.grad is not None:
                 if p.grad.data.isnan().any():
                     p.grad.data = torch.nan_to_num(p.grad.data)
                     warnings.warn("Warning: NaN gradients encountered. Proceeded by setting them to zero.")
-        
+
         # perform gradient update step.
         optimiser.step()
-        lr_sched.step()
-        
+        lr_sched.step()        
+
         # store metrics.
         for key, value in metrics.items():
             tracker[key].append(float(value))
 
         pbar.set_postfix(metrics)
-        
-    # return model to cpu if relevant.
-    if use_gpu and torch.cuda.is_available():
-        print("Returning model and tensors to CPU.")
-        cpu_device = torch.device('cpu')
-        torch.set_default_device(cpu_device)
-        model.to(cpu_device)
-        X = X.to(device)
-        t = t.to(device)
+    
+        # handle early stopping
+        if es_thresh is not None:
+            loss_window = torch.roll(loss_window, 1)
+            loss_window[0] = - loss.detach().item()
+            if loss_window.mean() > es_thresh:
+                break
+    
+    if device_agnostic:
+        pass
+    else:
+        # return model to cpu if relevant.
+        if use_gpu and (torch.cuda.is_available() or torch.backends.mps.is_available()):
+            print("Returning model and data to CPU.")
+            cpu_device = torch.device('cpu')
+            torch.set_default_device(cpu_device)
+            torch.set_default_dtype(torch.float64)
+            model.to(cpu_device)
+            model.to(dtype=torch.float64)
 
     return tracker
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def train_gp(
+#     model,
+#     X: torch.Tensor,
+#     y: torch.Tensor,
+#     epochs: int = 100,
+#     learning_rate: float = 1e-2,
+#     final_learning_rate: Optional[float] = None,
+#     max_gradient: Optional[float] = None,
+#     use_gpu: bool = False,
+#     silent: bool = False,
+#     svgp: bool = False,
+#     num_samples: int = 1,
+# ) -> torch.Tensor:
+    
+
+#     # set device to gpu if user wants to and one is available.
+#     if use_gpu:
+#         if torch.cuda.is_available():
+#             device = torch.device('cuda')
+#         elif torch.backends.mps.is_available():
+#             device = torch.device('mps')
+#         else:
+#             print("No GPU found, falling back to CPU")
+#             device = torch.device('cpu')
+#         torch.set_default_device(device)
+#         model.to(device)
+#         print("Moving dataset to device...")
+#         X = X.to(device)
+#         t = t.to(device)
+#         print("Done.")
+#     else:
+#         device = torch.device('cpu')
+
+#     # initialise optimiser and learning rate scheduler.
+#     optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
+#     if final_learning_rate is not None:
+#         end_factor = final_learning_rate / learning_rate
+#     else:
+#         end_factor = 1.0
+#     lr_sched = torch.optim.lr_scheduler.LinearLR(
+#         optimiser, start_factor=1.0, end_factor=end_factor, total_iters=epochs
+#     )
+
+#     # initialise metrics tracker.
+#     tracker = defaultdict(list)
+#     pbar = tqdm(range(epochs), disable=silent)
+    
+#     # main training loop here.
+#     for _ in pbar:
+    
+#         # compute loss and gradients.
+#         optimiser.zero_grad()
+#         if svgp:
+#             try:
+#                 loss, metrics = model.loss(X, y, X, y, num_samples=num_samples)
+#             except ValueError:
+#                 # print("Handled Value Error")
+#                 loss, metrics = model.loss(X, y, X, y, num_samples=num_samples)
+#             # loss, metrics = model.loss(
+#             #     X, y, X, y, num_samples=num_samples
+#             # )
+#         else:
+#             loss, metrics = model.loss(
+#                 X,
+#                 y,
+#             )
+
+#         loss.backward()
+        
+#         # clip gradients if desired.
+#         if max_gradient is not None:
+#             torch.nn.utils.clip_grad_norm_(model.parameters(), max_gradient) 
+#         for p in model.parameters():
+#             if p.grad is not None:
+#                 if p.grad.data.isnan().any():
+#                     p.grad.data = torch.nan_to_num(p.grad.data)
+#                     warnings.warn("Warning: NaN gradients encountered. Proceeded by setting them to zero.")
+        
+#         # perform gradient update step.
+#         optimiser.step()
+#         lr_sched.step()
+        
+#         # store metrics.
+#         for key, value in metrics.items():
+#             tracker[key].append(float(value))
+
+#         pbar.set_postfix(metrics)
+        
+#     # return model to cpu if relevant.
+#     if use_gpu and torch.cuda.is_available():
+#         print("Returning model and tensors to CPU.")
+#         cpu_device = torch.device('cpu')
+#         torch.set_default_device(cpu_device)
+#         model.to(cpu_device)
+#         X = X.to(device)
+#         t = t.to(device)
+
+#     return tracker
