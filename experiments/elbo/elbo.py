@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 from collections import defaultdict
 
 import models
-import baselines
+from models import baselines
 from utils.training import train_meta_model, train_variational_model
 from utils.bnn_prior import GaussianBNNPrior
 from utils.data_utils import obtain_me_a_nice_bnn_dataset_please, obtain_me_a_nice_gp_dataset_please

@@ -1,0 +1,1 @@
+from .variational_bnn.variational_mlp import MFVIBNN
