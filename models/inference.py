@@ -2,16 +2,21 @@ import torch
 from torch import nn
 from .tensors import stable_inversion
 
-def compute_unitwise_posteriors(X, Y, log_sigmas, prior):
+def compute_unitwise_posteriors(X, Y, log_sigmas, prior, givi=False):
     # X should have already been passed through a nonlinearity
     # X is shape (samples, N, d_in+1)
     # Y and log_sigmas are both shape (N, d_out) or shape (samples, N, d_out) (the latter if inf_net_use_act==True)
+    # If givi == True, then log_sigmas is shape (d_out, N, N) where N == num_inducing
     diagonal = False
     if isinstance(prior, torch.distributions.Normal):
         diagonal = True
     
-    Lambda_d_l = (1 / ((2*log_sigmas).exp()+1e-6)).transpose(-2, -1).diag_embed() # shape (d_out, N, N) or (samples, d_out, N, N)
-    if len(Lambda_d_l.shape) == 2:
+    if givi:
+        # using Ober and Aitchison's Globally Inducing VI framework, so log_sigmas is different shape to normal
+        Lambda_d_l = stable_inversion(log_sigmas) # already shape (d_out, N, N). Also already a covariance matrix, not log sigmas.
+    else:
+        Lambda_d_l = (1 / ((2*log_sigmas).exp()+1e-6)).transpose(-2, -1).diag_embed() # shape (d_out, N, N) or (samples, d_out, N, N)
+    if len(Lambda_d_l.shape) == 2: ######## should this be 3??????
         Lambda_d_l = Lambda_d_l.unsqueeze(0)
     mu_d_l = prior.mean # shape (d_out, d_in+1)
 
@@ -32,7 +37,7 @@ def compute_unitwise_posteriors(X, Y, log_sigmas, prior):
     S_d_l = stable_inversion(S_d_l_inv) + torch.eye(S_d_l_inv.shape[-1]).unsqueeze(0).unsqueeze(0)*0.00001 # shape (samples, d_out, d_in+1, d_in+1)
     m_d_l = (S_d_l @ (Sigma_d_l_inv @ mu_d_l.unsqueeze(-1) + X.transpose(-2, -1).unsqueeze(1) @ Lambda_d_l @ Y.transpose(-2, -1).unsqueeze(-1))).squeeze(-1)
     # m_d_l is shape (samples, d_out, d_in+2)
-    return torch.distributions.MultivariateNormal(m_d_l, S_d_l) # object shape (samples, d_out, d_in+1)
+    return torch.distributions.MultivariateNormal(m_d_l, S_d_l) # event shape (samples, d_out, d_in+1)
 
 
 def compute_layerwise_posterior(X, Y, log_sigmas, prior):

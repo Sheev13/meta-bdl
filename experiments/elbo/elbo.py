@@ -43,7 +43,7 @@ def main(codename=None,
 
     if model_name is None:
         raise ValueError("User failed to specify which model to run ELBO experiment for.")
-    elif model_name.lower() not in ['mfvi', 'fcvi', 'givi', 'bdnp', 'meta_bdnp', 'mc']:
+    elif model_name.lower() not in ['mfvi', 'ucvi', 'lcvi', 'fcvi', 'givi', 'bdnp', 'meta_bdnp', 'mc']:
         raise ValueError(f"User has specified an unrecognised model with which to run the ELBO experiment: '{model_name}'")
     
     if dataset.lower() not in ['bnn', 'gp']:
@@ -104,6 +104,10 @@ def main(codename=None,
     
     if model_name == 'mfvi':
         model = baselines.MFVIBNN(**bnn_kwargs)
+    elif model_name == 'ucvi':
+        model = baselines.UCVIBNN(**bnn_kwargs)
+    elif model_name == 'lcvi':
+        model = baselines.LCVIBNN(**bnn_kwargs)
     elif model_name == 'fcvi':
         model = baselines.FCVIBNN(**bnn_kwargs)
     elif model_name == 'givi':

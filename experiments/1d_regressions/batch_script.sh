@@ -21,4 +21,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 # Run your script with arguments
-python experiments/1d_regressions/1d_regressions.py --codename ignatius --function_type heaviside --trainable_likelihood_noise --init_likelihood_noise 0.1 --nonlinearity tanh --architecture 64 64 --training_steps 20_000 --loss_function po-avi --num_samples 8 --learning_rate 3e-3 --final_learning_rate 5e-5 --train_new_model --use_gpu
+python experiments/1d_regressions/1d_regressions.py --codename janet --function_type heaviside --trainable_likelihood_noise --init_likelihood_noise 0.1 --nonlinearity relu --architecture 128 128 --training_steps 20_000 --loss_function p-avi --num_samples 8 --learning_rate 3e-3 --final_learning_rate 5e-5 --train_new_model --use_gpu
