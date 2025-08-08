@@ -48,6 +48,22 @@ def main(codename=None,
     
     if dataset.lower() not in ['bnn', 'gp']:
         raise ValueError("User failed to specify a valid dataset option out of 'bnn' or 'gp'.")
+    
+
+    if nonlinearity.lower() == 'relu':
+        nonlinearity = torch.nn.ReLU()
+    elif nonlinearity.lower() == 'tanh':
+        nonlinearity = torch.nn.Tanh()
+    elif nonlinearity.lower() == 'sigmoid':
+        nonlinearity = torch.nn.Sigmoid()
+    elif 'leaky' in nonlinearity.lower():
+        nonlinearity = torch.nn.LeakyReLU()
+    elif nonlinearity.lower() == 'swish' or nonlinearity.lower() == 'silu':
+        nonlinearity = torch.nn.SiLU()
+    else:
+        raise NotImplementedError("Conversion to torch.nn module not yet implemented for provided nonlinearity string.")
+
+
 
     if use_gpu:
         if torch.cuda.is_available():
@@ -111,8 +127,7 @@ def main(codename=None,
     elif model_name == 'fcvi':
         model = baselines.FCVIBNN(**bnn_kwargs)
     elif model_name == 'givi':
-        bnn_kwargs['num_inducing'] = 5
-        model = baselines.GIVIBNN(**bnn_kwargs)
+        model = baselines.GIVIBNN(**bnn_kwargs, num_inducing=5)
     elif model_name == 'bdnp' or model_name == 'meta_bdnp':
         model = models.BDNP(**bdnp_kwargs)
     elif model_name == 'mc':
@@ -121,8 +136,7 @@ def main(codename=None,
     if model_name == 'meta_bdnp':
         md = [data_generating_func(n_range=[5, 50], **data_generating_kwargs) for _ in range(num_bdnp_datasets)]
         training_alg = train_meta_model
-        training_kwargs = {'model': model,
-                           'md': md,
+        training_kwargs = {'md': md,
                            'batch_size': 5,
                            'learning_rate': 5e-3,
                            'final_learning_rate': 1e-3,
@@ -131,14 +145,13 @@ def main(codename=None,
                            'device_agnostic': True}
     else:
         training_alg = train_variational_model
-        training_kwargs = {'model': model,
-                           'dataset': (X, Y),
-                           'learning_rate': 5e-3,
-                           'final_learning_rate': 1e-3,
+        training_kwargs = {'dataset': (X, Y),
+                           'learning_rate': 1e-2,
+                           'final_learning_rate': 5e-3,
                            'num_samples': 8,
                            'device_agnostic': True}
 
-    results = {}
+    results = defaultdict(list)
     training_metrics = defaultdict(list)
 
     for i, sigma_y in enumerate(sigma_y_list):
@@ -182,7 +195,27 @@ def main(codename=None,
         elif key == 'kl':
             axes[i].set_ylim([0, 2000])
 
-    plt.savefig(PATH + f"/figs/{codename}/training/pdfs/{model_name}.pdf", bbox_inches="tight")
-    plt.savefig(PATH + f"/figs/{codename}/training/pngs/{model_name}.png", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/{codename}/pdfs/{model_name}-training.pdf", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/{codename}/pngs/{model_name}-training.png", bbox_inches="tight")
     plt.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="BDNP experiment 2")
+    parser.add_argument('--codename', type=str, default=None, help='Codename for training run')
+    parser.add_argument('--model_name', type=str, default=None, help='Which model to run the experiment for.')
+    parser.add_argument('--dataset', type=str, default='bnn', help='Type of function/dataset')
+    parser.add_argument('--hidden_dims', type=int, nargs='+', default=[20, 20], help='hidden layer dimensions of BNNs')
+    parser.add_argument('--lml_mc_samples', type=int, default=10_000, help='Number of Monte Carlo samples for MC log marginal likelihood estimation')
+    parser.add_argument('--num_sigma_ys', type=int, default=10, help='Number of different likelihood noise variances to evaluate.')
+    parser.add_argument('--min_sigma_y', type=float, default=0.01, help='Lower value of sigma_y range.')
+    parser.add_argument('--max_sigma_y', type=float, default=0.1, help='Upper value of sigma_y range.')
+    parser.add_argument('--num_bdnp_datasets', type=int, default=100_000, help='Number of datasets in meta-dataset')
+    parser.add_argument('--seed', type=int, default=69, help='Manually-specified random seed.')
+    parser.add_argument('--scale_prior', action='store_true', help='Whether to use an input-dimension-scaled prior.')
+    parser.add_argument('--nonlinearity', type=str, default='relu', help='Elementwise-acting nonlinearity')
+    parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
+
+    args = parser.parse_args()
+    main(**vars(args))
         

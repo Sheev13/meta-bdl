@@ -25,11 +25,7 @@ class BaseGaussianVIBNN(nn.Module, ABC):
         self.nonlinearity = nonlinearity
         self.residual = residual
 
-    @abstractmethod
-    def layer(self, *args, **kwargs):
-        pass
-
-    def build_bnn(self):
+    def build_bnn(self, layer, **kwargs):
         dims = [self.x_dim] + self.hidden_dims + [self.y_dim]
         layers = nn.ModuleList()
         for i in range(len(dims)):
@@ -39,7 +35,7 @@ class BaseGaussianVIBNN(nn.Module, ABC):
                 nl = nn.Identity()
             else:
                 nl = self.nonlinearity
-            layers.append(self.layer(dims[i], dims[i+1], scale_prior=self.scale_prior, nonlinearity=nl, residual=self.residual))
+            layers.append(layer(dims[i], dims[i+1], scale_prior=self.scale_prior, nonlinearity=nl, residual=self.residual, **kwargs))
         
         self.layers = layers
 
@@ -59,7 +55,9 @@ class BaseGaussianVIBNN(nn.Module, ABC):
             out = layer(X, return_kl=return_kl, num_samples=num_samples)
             if return_kl:
                 cum_kl += out[1]
-            X = out[0]
+                X = out[0]
+            else:
+                X = out
 
         if return_kl:
             return X, cum_kl
@@ -83,41 +81,59 @@ class BaseGaussianVIBNN(nn.Module, ABC):
 
         return - elbo, metrics
 
+
 class MFVIBNN(BaseGaussianVIBNN):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.build_bnn()
+        self.build_bnn(MFVILinearLayer)
 
-    def layer(self, *args, **kwargs):
-        return MFVILinearLayer(*args, **kwargs)
 
 
 class UCVIBNN(BaseGaussianVIBNN):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.build_bnn()
+        self.build_bnn(UCVILinearLayer)
 
-    def layer(self, *args, **kwargs):
-        return UCVILinearLayer(*args, **kwargs)
     
 
 class LCVIBNN(BaseGaussianVIBNN):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.build_bnn()
+        self.build_bnn(LCVILinearLayer)
 
-    def layer(self, *args, **kwargs):
-        return LCVILinearLayer(*args, **kwargs)
     
 ####### below is incomplete, e.g. need to handle inducing points and different use of .forward()
-# also I think self.build_bnn() might not work in any of these
 class GIVIBNN(BaseGaussianVIBNN):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, num_inducing=50, **kwargs):
         super().__init__(*args, **kwargs)
-        self.build_bnn()
+        self.build_bnn(GIVILinearLayer, num_inducing=num_inducing)
 
-    def layer(self, *args, **kwargs):
-        return GIVILinearLayer(*args, **kwargs)
+        self.num_inducing = num_inducing
+        self.Z = nn.Parameter(torch.randn((num_inducing, self.x_dim)), requires_grad=True) * 4
+
+    def init_inducing_points(self, X):
+        assert len(X.shape) == 2
+        assert X.shape[0] == self.num_inducing
+        assert X.shape[1] == self.x_dim
+        self.Z.data = X
+
+    def forward(self, X, num_samples=1, return_kl=False):
+        # X is shape (batch, x_dim)
+        X = X.unsqueeze(0).repeat((num_samples, 1, 1))
+        U = self.Z.unsqueeze(0).repeat((num_samples, 1, 1))
+
+        cum_kl = torch.tensor(0.0)
+        for layer in self.layers:
+            out = layer(X, U, return_kl=return_kl, num_samples=num_samples)
+            if return_kl:
+                cum_kl += out[-1]
+                X, U = out[:-1]
+            else:
+                X, U = out
+
+        if return_kl:
+            return X, cum_kl
+        return X
     
 
 

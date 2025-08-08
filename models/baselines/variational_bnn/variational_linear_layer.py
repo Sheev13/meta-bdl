@@ -70,7 +70,7 @@ class VariationalLinearLayer(nn.Module, ABC):
 
 class MFVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.q_mu = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=True)
         self.log_q_stds = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=True)
 
@@ -87,7 +87,7 @@ class MFVILinearLayer(VariationalLinearLayer):
 
 class UCVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.q_mu = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=False)
         self.q_log_L_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=False)
         self.q_L_off_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1, self.d_in+1)), requires_grad=False)
@@ -110,7 +110,7 @@ class UCVILinearLayer(VariationalLinearLayer):
 
 class LCVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         num_weights = self.d_out * (self.d_in + 1)
         self.q_mu = nn.Parameter(torch.zeros((num_weights,)), requires_grad=True)
         self.q_log_L_diag = nn.Parameter(torch.zeros((num_weights,)), requires_grad=True)
@@ -135,7 +135,7 @@ class LCVILinearLayer(VariationalLinearLayer):
 
 class GIVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, num_inducing=50, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.t_mu = nn.Parameter(torch.zeros((num_inducing, self.d_out)), requires_grad=True) # means of pseudo likelihoods t(w)
         self.t_log_L_diag = nn.Parameter(torch.zeros((num_inducing, )), requires_grad=True) 
         self.t_L_off_diag = nn.Parameter(torch.zeros((num_inducing, num_inducing)), requires_grad=True)
