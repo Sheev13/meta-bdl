@@ -58,8 +58,5 @@ class GaussianBNNPrior(nn.Module):
         if self.likelihood is None:
             raise ValueError("User Failed to specify likelihood function at MeanFieldBNNPrior initialisation.")
 
-        pred_samps = self.likelihood(self(X, num_samples))
-        log_lik = self.likelihood.log_prob(pred_samps) # shape (num_samps, batch, y_dim)
-        log_marg_lik = log_lik.sum(-1).sum(-1).logsumexp(dim=0) - torch.tensor(num_samples).log()
-
-        return log_marg_lik
+        pred_samps = self(X, num_samples)
+        return self.likelihood.log_prob(pred_samps, Y).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()

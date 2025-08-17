@@ -14,11 +14,7 @@ class FCWeightwisePrior(nn.Module):
                  ):
         super().__init__()
         self.mus = nn.Parameter(torch.zeros((d_out, d_in+1)), requires_grad=False)
-
-        sf = 0 # std scale factor
-        if scaled:
-            sf = torch.tensor(d_in+1).sqrt().log()
-        self.log_sigmas = nn.Parameter(torch.zeros((d_out, d_in+1)) - sf, requires_grad=False)
+        self.log_sigmas = nn.Parameter(torch.zeros((d_out, d_in+1)), requires_grad=False)
 
         self.d_in = d_in
         self.d_out = d_out
@@ -26,7 +22,10 @@ class FCWeightwisePrior(nn.Module):
 
     @property
     def sigmas(self):
-        return self.log_sigmas.exp() / torch.tensor(self.d_in + 1).sqrt()
+        sigmas = self.log_sigmas.exp()
+        if self.scaled:
+            sigmas /= torch.tensor(self.d_in+1).sqrt()
+        return sigmas
 
     def trainable(self, flag: bool, just_mean: bool = False):
         self.mus.requires_grad = flag
@@ -49,6 +48,7 @@ class FCUnitwisePrior(nn.Module):
     def __init__(self,
                  d_in: int,
                  d_out: int,
+                 scaled: bool = False,
                  ):
         super().__init__()
         self.mus = nn.Parameter(torch.zeros((d_out, d_in+1)), requires_grad=False)
@@ -57,13 +57,17 @@ class FCUnitwisePrior(nn.Module):
 
         self.d_in = d_in
         self.d_out = d_out
+        self.scaled = scaled
 
     @property
     def Sigmas(self):
         L_diags = self.log_L_diags.exp().diag_embed()
         L_off_diags = self.L_off_diags.tril(diagonal=-1)
         Ls = L_diags + L_off_diags
-        return Ls @ Ls.transpose(-2, -1) / (self.d_in + 1) #* 0.0001
+        Sigmas = Ls @ Ls.transpose(-2, -1) 
+        if self.scaled:
+            Sigmas /= (self.d_in + 1)
+        return Sigmas
 
     def trainable(self, flag: bool, just_mean: bool = False):
         self.mus.requires_grad = flag

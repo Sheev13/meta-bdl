@@ -1,0 +1,33 @@
+{
+    "codename": "kenneth",
+    "num_datasets": 100000,
+    "n_range": [
+        40,
+        100
+    ],
+    "function_type": "heaviside",
+    "architecture": [
+        128,
+        128
+    ],
+    "nonlinearity": "tanh",
+    "residual": false,
+    "trainable_likelihood_noise": true,
+    "init_likelihood_noise": 0.1,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "use_act": false,
+    "training_steps": 20000,
+    "batch_size": 5,
+    "learning_rate": 0.001,
+    "final_learning_rate": 5e-05,
+    "loss_function": "pp-avi",
+    "num_samples": 8,
+    "release_prior_at_step": 0,
+    "ctxt_proportion_range": [
+        0.1,
+        0.9
+    ],
+    "train_new_model": true,
+    "use_gpu": false
+}

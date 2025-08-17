@@ -5,6 +5,7 @@ from typing import Optional, Dict, Tuple, List
 from collections import defaultdict
 import warnings
 import sys
+import random
 
 from .data_utils import MetaDataset, ctxt_trgt_split
 
@@ -32,7 +33,7 @@ def train_meta_model(
     ctxt_anneal_end_proportion: float = 0.5,
 ) -> Dict:
     
-    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'po-avi', 'mpl']:
+    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'po-avi', 'mpl', 'pp-avi']:
         raise ValueError(f"Loss function: {loss_function} not recognised.")
     
     # set device to gpu if user wants to and one is available.
@@ -55,7 +56,8 @@ def train_meta_model(
             print("Done.")
         else:
             device = torch.device('cpu')
-        
+    
+    # random.shuffle(md)
     meta_dataset = MetaDataset(md)
 
     # move dataset into torch dataloader
@@ -139,7 +141,7 @@ def train_meta_model(
 
             if loss_function == 'avi':
                 X_c, y_c, X_t, y_t = X, y, X, y
-            elif loss_function == 'po-avi':
+            elif loss_function == 'po-avi' or loss_function == 'pp-avi':
                 X_c, y_c, X_t, y_t = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
             else:
                 X_c, y_c, _, _ = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
@@ -156,6 +158,12 @@ def train_meta_model(
                 except ValueError:
                     print("Handled Value Error")
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True)
+            elif loss_function == 'pp-avi': # posterior-predictive AVI
+                try:
+                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True)
+                except ValueError:
+                    print("Handled Value Error")
+                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True)
             elif loss_function == 'npvi': # neural process variational inference (i.e. KL is between two approx. posteriors)
                 try:
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
@@ -294,7 +302,7 @@ def train_variational_model(
             print("Handled Value Error")
             loss, metrics = model.loss(X, Y, num_samples=num_samples)
         
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         # clip gradients if desired.
         if max_gradient is not None:

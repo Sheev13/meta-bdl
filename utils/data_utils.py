@@ -1,8 +1,10 @@
 from typing import List, Any, Tuple, Optional
 
 import torch
+# import torchvision
 from torch.utils.data import Dataset
 from utils.bnn_prior import GaussianBNNPrior
+from tqdm import tqdm
 
 class MetaDataset(Dataset):
     def __init__(self, datasets: List[Any]):
@@ -121,3 +123,113 @@ def obtain_me_a_nice_bnn_dataset_please(x_range=[-4.0, 4.0], n_range=[5, 100], n
     y = f_x + torch.randn_like(f_x) * noise
 
     return X, y
+
+
+
+
+
+########################## Image data utils ##########################
+
+
+# def random_mask(image: torch.Tensor, ratio_range: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+#     assert len(ratio) == 2
+#     ratio = torch.zeros((1,)).uniform_(from=ratio_range[0], to=ratio_range[1])
+#     dims = image.shape[-2:]
+#     mask = (torch.Tensor(dims).uniform_() < ratio)
+#     return image * mask, mask
+
+
+def vis_ctxt_img(image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    if len(image.shape) == 4 and image.shape[0] == 1:
+        image = image.squeeze(0)
+    assert len(image.shape) == 3
+    colours = image.shape[0]
+    assert colours in [1, 3]  # either greyscale or RGB
+
+    mask = mask.bool()
+    if colours == 1:
+        image = image.repeat((3, 1, 1))
+        blue = torch.cat(
+            (
+                torch.zeros_like(mask).unsqueeze(0),
+                torch.zeros_like(mask).unsqueeze(0),
+                torch.ones_like(mask).unsqueeze(0),
+            ),
+            dim=0,
+        )
+        image = torch.where(mask, image, blue)
+    elif colours == 3:
+        grey = torch.cat(
+            (
+                torch.zeros_like(mask).unsqueeze(0),
+                torch.zeros_like(mask).unsqueeze(0),
+                torch.ones_like(mask).unsqueeze(0),
+            ),
+            dim=0,
+        )
+        image = torch.where(mask, image, grey)
+
+    return image.permute(1, 2, 0)  # permutation needed for matplotlib
+
+
+def img_for_reg(
+    img: torch.Tensor, mask: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    num_x1, num_x2 = img.shape[-2:]
+    num_pix = num_x1 * num_x2
+    x1_range = torch.linspace(-1, 1, num_x1)
+    x2_range = torch.linspace(-1, 1, num_x2)
+    xm1, xm2 = torch.meshgrid(x1_range, x2_range, indexing="xy")
+    x1 = xm1.flatten()
+    x2 = xm2.flatten()
+
+    x = torch.stack((x1, x2)).transpose(-1, -2)
+    y = img.reshape(-1, num_pix)
+
+    x_c = x[mask.flatten().bool()]
+    x_t = x[~mask.flatten().bool()]
+    y_c = y[:, mask.flatten().bool()]
+    y_t = y[:, ~mask.flatten().bool()]
+    return x_c, y_c.T, x_t, y_t.T, x, y.T
+
+
+def test_grid(image_shape: torch.Size):
+    num_x1, num_x2 = image_shape
+    num_pix = num_x1 * num_x2
+    x1_range = torch.linspace(-1, 1, num_x1)
+    x2_range = torch.linspace(-1, 1, num_x2)
+    xm1, xm2 = torch.meshgrid(x1_range, x2_range, indexing="xy")
+    x1 = xm1.flatten()
+    x2 = xm2.flatten()
+
+    return torch.stack((x1, x2)).transpose(-1, -2)
+
+
+def image_tensor_to_dataset(image: torch.Tensor, mask_proportion_range: Tuple[float]):
+    pass
+    # _, mask = random_mask(image, mask_proportion_range)
+    # return img_for_reg(image, mask)
+
+def build_MNIST_meta_dataset(test: bool = False):
+    mnist = torchvision.datasets.MNIST(
+        root="./data",
+        train=True,
+        download=False,
+        transform=torchvision.transforms.ToTensor(),
+    )
+    mnist_iter = iter(torch.utils.data.DataLoader(mnist, shuffle=True))
+
+    if test:
+        n = 10_000
+    else:
+        n = 60_000
+
+    md = []
+    # for _ in tqdm(range(n)):
+    #     img = next(mnist_iter)[0].squeeze(0)
+    #     X, Y = some_function(img)
+    #     m_d.append((X, Y))
+
+    # return md
+
+    

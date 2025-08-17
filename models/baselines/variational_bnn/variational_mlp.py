@@ -124,7 +124,7 @@ class GIVIBNN(BaseGaussianVIBNN):
 
         cum_kl = torch.tensor(0.0)
         for layer in self.layers:
-            out = layer(X, U, return_kl=return_kl, num_samples=num_samples)
+            out = layer(X, U, return_kl=return_kl)
             if return_kl:
                 cum_kl += out[-1]
                 X, U = out[:-1]
@@ -151,7 +151,7 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
         super().__init__()
 
         dims = [x_dim] + hidden_dims + [y_dim]
-        weights_per_layer = [dims[i] * (dims[i+1]+1) for i in range(len(dims) - 1)]
+        weights_per_layer = [(dims[i]+1) * dims[i+1] for i in range(len(dims) - 1)]
         cumulative_weights_per_layer = [0] + list(accumulate(weights_per_layer))
         num_weights = cumulative_weights_per_layer[-1]
         assert num_weights == sum(weights_per_layer)
@@ -163,7 +163,7 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
             cwpl = cumulative_weights_per_layer # long-ass name
             for i in range(len(cwpl)-1):
                 sf[cwpl[i]:cwpl[i+1]] /= (dims[i]+1)
-            self.p_Sigma / sf.diag_embed()
+            self.p_Sigma *= sf.diag_embed()
 
         self.q_mu = nn.Parameter(torch.zeros((num_weights,)), requires_grad=True)
         self.q_log_L_diag = nn.Parameter(torch.zeros((num_weights,)), requires_grad=True)
@@ -177,7 +177,7 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
         self.nonlinearity = nonlinearity
         self.identity = nn.Identity()
         self.residual = residual
-
+        self.dims = dims
         self.wpl = weights_per_layer
         self.cum_wpl = cumulative_weights_per_layer
         self.num_weights = num_weights
@@ -194,15 +194,17 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
     
     def q_w(self, num_samples):
         q_mu = self.q_mu.unsqueeze(0).repeat((num_samples, 1))
-        q_Sigmas = self.q_Sigmas.unsqueeze(0).repeat((num_samples, 1, 1))
-        return torch.distributions.MultivariateNormal(q_mu, q_Sigmas)
+        q_Sigma = self.q_Sigma.unsqueeze(0).repeat((num_samples, 1, 1))
+        return torch.distributions.MultivariateNormal(q_mu, q_Sigma)
     
     def forward(self, X, num_samples=1):
         # X is shape (batch, x_dim)
         X = X.unsqueeze(0).repeat((num_samples, 1, 1))
         W = self.q_w(num_samples).rsample() # shape (num_samples, num_weights)
         for i in range(len(self.hidden_dims)+1): # == range(len(dims) - 1)
+            old_X = X
             W_l = W[:,self.cum_wpl[i]:self.cum_wpl[i+1]]
+            W_l = W_l.reshape((num_samples, self.dims[i+1], self.dims[i]+1))
 
             if i == 0:
                 phi_X = self.identity(X)
@@ -211,12 +213,12 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
 
             aug_X = torch.cat((phi_X, torch.ones((X.shape[0], X.shape[1], 1))), dim=-1) # shape (num_samples, batch, d_in+1)
             
-            out = aug_X @ W_l.transpose(-2, -1)
+            X = aug_X @ W_l.transpose(-2, -1)
 
             if self.residual and W_l.shape[-2] == W_l.shape[-1] + 1:
-                out += X
+                X += old_X
 
-        return out
+        return X
     
     def compute_kl(self):
         p = torch.distributions.MultivariateNormal(self.p_mu, self.p_Sigma)

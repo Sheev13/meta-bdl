@@ -16,7 +16,7 @@ def compute_unitwise_posteriors(X, Y, log_sigmas, prior, givi=False):
         Lambda_d_l = stable_inversion(log_sigmas) # already shape (d_out, N, N). Also already a covariance matrix, not log sigmas.
     else:
         Lambda_d_l = (1 / ((2*log_sigmas).exp()+1e-6)).transpose(-2, -1).diag_embed() # shape (d_out, N, N) or (samples, d_out, N, N)
-    if len(Lambda_d_l.shape) == 2: ######## should this be 3??????
+    if len(Lambda_d_l.shape) == 2: ######## should this be 3 or 2??????
         Lambda_d_l = Lambda_d_l.unsqueeze(0)
     mu_d_l = prior.mean # shape (d_out, d_in+1)
 

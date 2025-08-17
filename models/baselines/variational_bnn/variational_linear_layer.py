@@ -66,7 +66,7 @@ class VariationalLinearLayer(nn.Module, ABC):
             Sigmas = self.Sigmas.unsqueeze(0).repeat((num_samples, 1, 1, 1))
             p = torch.distributions.MultivariateNormal(mus, Sigmas)
             return torch.distributions.kl_divergence(q, p).mean(0).sum() 
-        
+
 
 class MFVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, **kwargs):
@@ -88,9 +88,9 @@ class MFVILinearLayer(VariationalLinearLayer):
 class UCVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.q_mu = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=False)
-        self.q_log_L_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=False)
-        self.q_L_off_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1, self.d_in+1)), requires_grad=False)
+        self.q_mu = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=True)
+        self.q_log_L_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1)), requires_grad=True)
+        self.q_L_off_diags = nn.Parameter(torch.zeros((self.d_out, self.d_in+1, self.d_in+1)), requires_grad=True)
 
     @property
     def q_Sigmas(self):
@@ -98,7 +98,7 @@ class UCVILinearLayer(VariationalLinearLayer):
         L_off_diags = self.q_L_off_diags.tril(diagonal=-1)
         Ls = L_diags + L_off_diags
 
-        jitter = torch.eye(self.num_weights) * 1e-5
+        jitter = torch.eye(self.d_in + 1).unsqueeze(0) * 1e-5
 
         return (Ls @ Ls.transpose(-2, -1) + jitter) / 10
     
@@ -132,6 +132,20 @@ class LCVILinearLayer(VariationalLinearLayer):
         q_Sigma = self.q_Sigma.unsqueeze(0).repeat((num_samples, 1, 1))
         return torch.distributions.MultivariateNormal(q_mu, q_Sigma)
     
+    def compute_kl(self, q: torch.distributions.Distribution):
+        p_mu = self.mus.reshape((self.num_weights,)) 
+        p_Sigma = torch.block_diag(*self.Sigmas) # shape (num_weights, num_weights)
+
+        if len(q.mean.shape) == 1: # (num_weights,)
+            p = torch.distributions.MultivariateNormal(p_mu, p_Sigma)
+            return torch.distributions.kl_divergence(q, p)
+        else: # q has event shape (num_samples, num_weights)
+            num_samples = q.mean.shape[0]
+            p_mu = p_mu.unsqueeze(0).repeat((num_samples, 1))
+            p_Sigma = p_Sigma.unsqueeze(0).repeat((num_samples, 1, 1))
+            p = torch.distributions.MultivariateNormal(p_mu, p_Sigma)
+            return torch.distributions.kl_divergence(q, p).mean(0)
+    
 
 class GIVILinearLayer(VariationalLinearLayer):
     def __init__(self, *args, num_inducing=50, **kwargs):
@@ -160,7 +174,7 @@ class GIVILinearLayer(VariationalLinearLayer):
     def q_w(self, aug_U):
         # aug_U is shape (num_samples, num_inducing, d_in+1). Inducing inputs propagated thus far in network.
         # It is expected to have been passed through nonlinearity already, and then augmented with ones (for bias).
-        return compute_unitwise_posteriors(aug_U, self.t_mu, self.t_Sigma, self.prior) # event shape (samples, d_out, d_in+1)
+        return compute_unitwise_posteriors(aug_U, self.t_mu, self.t_Sigma, self.prior, givi=True) # event shape (samples, d_out, d_in+1)
     
     def forward(self, X, U, return_kl=False):
         phi_U = self.nonlinearity(U)
@@ -172,7 +186,7 @@ class GIVILinearLayer(VariationalLinearLayer):
         W = q_w.rsample() # shape (num_samples, d_out, d_in+1)
 
         out_U = aug_U @ W.transpose(-2, -1)
-        out_X = out_X @ W.transpose(-2, -1)
+        out_X = aug_X @ W.transpose(-2, -1)
 
         if self.residual and self.d_in == self.d_out:
             out_U += U

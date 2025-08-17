@@ -1,0 +1,20 @@
+{
+    "codename": "test_mfvi",
+    "model_name": "mfvi",
+    "dataset": "bnn",
+    "hidden_dims": [
+        20,
+        20
+    ],
+    "learning_rate": 0.01,
+    "final_learning_rate": 0.001,
+    "lml_mc_samples": 10000,
+    "num_sigma_ys": 40,
+    "min_sigma_y": 0.0125,
+    "max_sigma_y": 0.5,
+    "num_bdnp_datasets": 100000,
+    "seed": 69,
+    "scale_prior": true,
+    "nonlinearity": "relu",
+    "use_gpu": false
+}

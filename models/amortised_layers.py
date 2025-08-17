@@ -34,12 +34,12 @@ class AmortisedLinearLayer(nn.Module):
                        FCLayerwisePrior,
                        FCNetworkwisePrior]
         assert prior_type in [0, 1, 2, 3]
-        if prior_type == 0:
-            prior = prior_types[0](d_in, d_out, scale_prior)
-        if prior_type == 3:
+        if prior_type in [0, 1]:
+            prior = prior_types[prior_type](d_in, d_out, scale_prior)
+        elif prior_type == 3:
             prior = None
         else:
-            prior = prior_types[prior_type](d_in, d_out)
+            prior = prior_types[2](d_in, d_out)
 
         self.inf_net = None
         if not (global_noise and targets_available): # if we need an inference network to predict something
