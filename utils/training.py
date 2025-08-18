@@ -57,7 +57,6 @@ def train_meta_model(
         else:
             device = torch.device('cpu')
     
-    # random.shuffle(md)
     meta_dataset = MetaDataset(md)
 
     # move dataset into torch dataloader

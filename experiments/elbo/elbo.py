@@ -25,7 +25,6 @@ def main(codename=None,
          hidden_dims=[20, 20],
          learning_rate=1e-2,
          final_learning_rate=1e-3,
-         lml_mc_samples=10_000,
          num_sigma_ys=10,
          min_sigma_y=0.01,
          max_sigma_y=0.1,
@@ -40,7 +39,9 @@ def main(codename=None,
 
     PATH = str(Path(__file__).resolve().parent)
 
-    with open(PATH + f"/run-configs/{codename}-config.json", 'w') as f:
+    Path(PATH + f"/run_configs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/run_configs/{seed}").mkdir(parents=True, exist_ok=True)
+    with open(PATH + f"/run_configs/{seed}/{codename}.json", 'w') as f:
         json.dump(args_dict, f, indent=4)
 
     if codename is None:
@@ -71,7 +72,6 @@ def main(codename=None,
         raise NotImplementedError("Conversion to torch.nn module not yet implemented for provided nonlinearity string.")
 
 
-
     if use_gpu:
         if torch.cuda.is_available():
             device = torch.device('cuda')
@@ -82,12 +82,19 @@ def main(codename=None,
         torch.set_default_dtype(torch.float64)
         print("device type: ", device)
 
-    Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/{codename}/pngs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + "/figs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{seed}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{seed}/{codename}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{seed}/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{seed}/{codename}/pngs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/data").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/results").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/results/{seed}").mkdir(parents=True, exist_ok=True)
     
-    torch.manual_seed(seed)
+    torch.manual_seed(69) # constant seed for this part only to ensure dame dataset every time
+    if use_gpu:
+        torch.cuda.manual_seed(69)
     if dataset == 'bnn':
         data_generating_func = obtain_me_a_nice_bnn_dataset_please
         data_generating_kwargs = {'x_range': [-4.0, 4.0],
@@ -113,44 +120,49 @@ def main(codename=None,
         
     sigma_y_list = torch.logspace(torch.tensor(min_sigma_y).log10(), torch.tensor(max_sigma_y).log10(), num_sigma_ys)
 
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=min_sigma_y, train=False)
-    bnn_kwargs = {'x_dim': 1,
-                  'y_dim': 1,
-                  'hidden_dims': hidden_dims,
-                  'likelihood': lik,
-                  'scale_prior': scale_prior,
-                  'nonlinearity': nonlinearity}
-    
-    bdnp_kwargs = {'x_dim': 1,
-                   'y_dim': 1,
-                   'hidden_dims': hidden_dims,
-                   'prior_type': 1,
-                   'likelihood': lik,
-                   'inf_dims': [50, 50],
-                   'use_final_layer_targets': True,
-                   'use_final_layer_noise': False,
-                   'scale_prior': scale_prior,
-                   'nonlinearity': nonlinearity}
+    if 'bdnp' in model_name.lower():
+        model_kwargs = {'x_dim': 1,
+                        'y_dim': 1,
+                        'hidden_dims': hidden_dims,
+                        'prior_type': 1,
+                        'likelihood': lik,
+                        'inf_dims': [50, 50],
+                        'use_final_layer_targets': True,
+                        'use_final_layer_noise': False,
+                        'scale_prior': scale_prior,
+                        'nonlinearity': nonlinearity}
+    else:
+        model_kwargs = {'x_dim': 1,
+                        'y_dim': 1,
+                        'hidden_dims': hidden_dims,
+                        'likelihood': lik,
+                        'scale_prior': scale_prior,
+                        'nonlinearity': nonlinearity}
+        if model_name.lower() == 'givi':
+            model_kwargs['num_inducing'] = 10
     
     if model_name == 'mfvi':
-        model = baselines.MFVIBNN(**bnn_kwargs)
+        model_class = baselines.MFVIBNN
     elif model_name == 'ucvi':
-        model = baselines.UCVIBNN(**bnn_kwargs)
+        model_class = baselines.UCVIBNN
     elif model_name == 'lcvi':
-        model = baselines.LCVIBNN(**bnn_kwargs)
+        model_class = baselines.LCVIBNN
     elif model_name == 'fcvi':
-        model = baselines.FCVIBNN(**bnn_kwargs)
+        model_class = baselines.FCVIBNN
     elif model_name == 'givi':
-        model = baselines.GIVIBNN(**bnn_kwargs, num_inducing=10)
-    elif model_name == 'bdnp' or model_name == 'meta_bdnp':
-        model = models.BDNP(**bdnp_kwargs)
+        model_class = baselines.GIVIBNN
+    elif 'bdnp' in model_name.lower():
+        model_class = models.BDNP
     elif model_name == 'mc':
-        model = GaussianBNNPrior(**bnn_kwargs)
+        model_class = GaussianBNNPrior
+
+    torch.manual_seed(seed) # vary seed here for model training variability
+    if use_gpu:
+        torch.cuda.manual_seed(seed)
 
     if model_name == 'meta_bdnp':
-        md = [data_generating_func(n_range=[5, 50], **data_generating_kwargs) for _ in range(num_bdnp_datasets)]
         training_alg = train_meta_model
-        training_kwargs = {'md': md,
+        training_kwargs = {'md': None, # meta dataset passed in the training loop below.
                            'batch_size': 5,
                            'learning_rate': learning_rate,
                            'final_learning_rate': final_learning_rate,
@@ -166,39 +178,50 @@ def main(codename=None,
                            'device_agnostic': True}
 
     results = {}
-    training_metrics = defaultdict(list)
 
+
+    # core experiment here, i.e. actually train and evaluate models.
     for i, sigma_y in enumerate(sigma_y_list):
         print(f"On step {i+1} of {num_sigma_ys}. sigma_y={sigma_y}")
-        model.likelihood.raw_sigmas.data = sigma_y.log()
+
+        lik = models.GaussianLikelihood(y_dim=1, sigma_y=sigma_y, train=False)
 
         if model_name != 'mc':
-            if model_name == 'lcvi':
-                lik = models.GaussianLikelihood(y_dim=1, sigma_y=sigma_y, train=False)
-                bnn_kwargs['likelihood'] = lik
-                model = baselines.LCVIBNN(**bnn_kwargs)
-                training_stint = training_alg(model, training_steps=10_000, **training_kwargs)
-            elif model_name == 'fcvi':
-                lik = models.GaussianLikelihood(y_dim=1, sigma_y=sigma_y, train=False)
-                bnn_kwargs['likelihood'] = lik
-                model = baselines.FCVIBNN(**bnn_kwargs)
-                training_stint = training_alg(model, training_steps=10_000, **training_kwargs)
-            else:
-                if i == 0:
-                    training_stint = training_alg(model, training_steps=10_000, **training_kwargs)
-                else:
-                    training_stint = training_alg(model, training_steps=4_000, **training_kwargs)
+            model_kwargs['likelihood'] = lik
+            model = model_class(**model_kwargs)
+            if model_name.lower() == 'meta_bdnp':
+                md = [data_generating_func(n_range=[5, 50], **data_generating_kwargs) for _ in range(num_bdnp_datasets)]
+                training_kwargs['md'] = md
+            training_stint = training_alg(model, training_steps=10_000, **training_kwargs)
+            
 
-            for key, value in training_stint.items():
-                training_metrics[key].extend(value)
+            fig, axes = plt.subplots(1, len(training_stint), figsize=(3*len(training_stint), 1))
+            omitted_steps = 0
+            for i, (key, value) in enumerate(training_stint.items()):
+                axes[i].set_title(f"sigma_y={sigma_y.item()}")
+                axes[i].plot(value[omitted_steps:])
+                axes[i].set_xlabel(key)
+                axes[i].grid()
+                if key == 'elbo':
+                    axes[i].set_ylim([-1000, 100])
+                elif key == 'e_ll':
+                    axes[i].set_ylim([-1000, 200])
+                elif key == 'kl':
+                    axes[i].set_ylim([0, 500])
 
+            plt.savefig(PATH + f"/figs/training/{seed}/{codename}/pdfs/stint_{i}.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/figs/training/{seed}/{codename}/pngs/stint_{i}.png", bbox_inches="tight")
+            plt.close()
+
+
+        # collect ELBO/LML results
         with torch.no_grad():
             k = sigma_y.item()
             if model_name == 'mc':
                 if i < 6:
-                    s = 10_000_000
+                    s = 10_000_000 # crank this up when using cluster
                 else:
-                    s = lml_mc_samples
+                    s = 1_000_000 # for larger sigma_y this is fine, even fewer is also fine e.g. 10k.
                 lml = model.log_marginal_likelihood(X, Y, s)
                 results[k] = lml.cpu().item()
             elif 'bdnp' in model_name.lower():
@@ -208,27 +231,9 @@ def main(codename=None,
                 neg_elbo, _ = model.loss(X, Y, num_samples=10_000)
                 results[k] = -neg_elbo.cpu().item()
         print(f"Result: {results[k]}")
-    
-    if model_name != 'mc':
-        fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
-        omitted_steps = 0
-        for i, (key, value) in enumerate(training_metrics.items()):
-            axes[i].plot(value[omitted_steps:])
-            axes[i].set_xlabel(key)
-            axes[i].grid()
-            if key == 'elbo':
-                axes[i].set_ylim([-5000, 500])
-            elif key == 'e_ll':
-                axes[i].set_ylim([-4000, 1000])
-            elif key == 'kl':
-                axes[i].set_ylim([0, 2000])
-
-        plt.savefig(PATH + f"/figs/{codename}/pdfs/{model_name}-training.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/figs/{codename}/pngs/{model_name}-training.png", bbox_inches="tight")
-        plt.close()
 
 
-    with open(PATH + f"/results/{codename}.json", 'w') as f:
+    with open(PATH + f"/results/{seed}/{codename}.json", 'w') as f:
         json.dump({str(k): v for k, v in results.items()}, f, indent=4)
 
 
@@ -240,11 +245,10 @@ if __name__ == "__main__":
     parser.add_argument('--hidden_dims', type=int, nargs='+', default=[20, 20], help='hidden layer dimensions of BNNs')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
-    parser.add_argument('--lml_mc_samples', type=int, default=1_000_000, help='Number of Monte Carlo samples for MC log marginal likelihood estimation')
     parser.add_argument('--num_sigma_ys', type=int, default=40, help='Number of different likelihood noise variances to evaluate.')
     parser.add_argument('--min_sigma_y', type=float, default=0.01, help='Lower value of sigma_y range.')
     parser.add_argument('--max_sigma_y', type=float, default=10.0, help='Upper value of sigma_y range.')
-    parser.add_argument('--num_bdnp_datasets', type=int, default=100_000, help='Number of datasets in meta-dataset')
+    parser.add_argument('--num_bdnp_datasets', type=int, default=50_000, help='Number of datasets in meta-dataset')
     parser.add_argument('--seed', type=int, default=69, help='Manually-specified random seed.')
     parser.add_argument('--scale_prior', action='store_true', help='Whether to use an input-dimension-scaled prior.')
     parser.add_argument('--nonlinearity', type=str, default='relu', help='Elementwise-acting nonlinearity')
