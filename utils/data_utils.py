@@ -1,7 +1,6 @@
 from typing import List, Any, Tuple, Optional
 
 import torch
-# import torchvision
 from torch.utils.data import Dataset
 from utils.bnn_prior import GaussianBNNPrior
 from tqdm import tqdm
@@ -130,13 +129,12 @@ def obtain_me_a_nice_bnn_dataset_please(x_range=[-4.0, 4.0], n_range=[5, 100], n
 
 ########################## Image data utils ##########################
 
-
-# def random_mask(image: torch.Tensor, ratio_range: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-#     assert len(ratio) == 2
-#     ratio = torch.zeros((1,)).uniform_(from=ratio_range[0], to=ratio_range[1])
-#     dims = image.shape[-2:]
-#     mask = (torch.Tensor(dims).uniform_() < ratio)
-#     return image * mask, mask
+def generate_mask(image_shape: torch.Size, proportion: float):
+    mask = torch.zeros(image_shape)
+    num_ones = int(mask.numel() * proportion)
+    ones_idx = torch.randperm(mask.numel())[:num_ones]
+    mask.view(-1)[ones_idx] = 1
+    return mask
 
 
 def vis_ctxt_img(image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -172,9 +170,7 @@ def vis_ctxt_img(image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     return image.permute(1, 2, 0)  # permutation needed for matplotlib
 
 
-def img_for_reg(
-    img: torch.Tensor, mask: torch.Tensor
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def img_to_dataset(img: torch.Tensor, mask: Optional[torch.Tensor] = None):
     num_x1, num_x2 = img.shape[-2:]
     num_pix = num_x1 * num_x2
     x1_range = torch.linspace(-1, 1, num_x1)
@@ -186,12 +182,15 @@ def img_for_reg(
     x = torch.stack((x1, x2)).transpose(-1, -2)
     y = img.reshape(-1, num_pix)
 
-    x_c = x[mask.flatten().bool()]
-    x_t = x[~mask.flatten().bool()]
-    y_c = y[:, mask.flatten().bool()]
-    y_t = y[:, ~mask.flatten().bool()]
-    return x_c, y_c.T, x_t, y_t.T, x, y.T
+    if mask is not None:
+        x = x[mask.flatten().bool()]
+        y = y[:, mask.flatten().bool()]
 
+    return x, y
+
+def dataset_to_img(Y):
+    # Y expected to be of shape (1, 784)
+    return Y.reshape(1, 28, 28).permute(1, 2, 0)
 
 def test_grid(image_shape: torch.Size):
     num_x1, num_x2 = image_shape
@@ -203,33 +202,5 @@ def test_grid(image_shape: torch.Size):
     x2 = xm2.flatten()
 
     return torch.stack((x1, x2)).transpose(-1, -2)
-
-
-def image_tensor_to_dataset(image: torch.Tensor, mask_proportion_range: Tuple[float]):
-    pass
-    # _, mask = random_mask(image, mask_proportion_range)
-    # return img_for_reg(image, mask)
-
-def build_MNIST_meta_dataset(test: bool = False):
-    mnist = torchvision.datasets.MNIST(
-        root="./data",
-        train=True,
-        download=False,
-        transform=torchvision.transforms.ToTensor(),
-    )
-    mnist_iter = iter(torch.utils.data.DataLoader(mnist, shuffle=True))
-
-    if test:
-        n = 10_000
-    else:
-        n = 60_000
-
-    md = []
-    # for _ in tqdm(range(n)):
-    #     img = next(mnist_iter)[0].squeeze(0)
-    #     X, Y = some_function(img)
-    #     m_d.append((X, Y))
-
-    # return md
 
     

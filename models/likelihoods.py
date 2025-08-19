@@ -73,16 +73,3 @@ class BernoulliLikelihood(nn.Module):
         # estimate of expected log-likelihood w.r.t. posterior distribution.
         targets_stack = targets.unsqueeze(0).repeat((predictions.shape[0], 1))
         return (targets_stack * torch.log(predictions) + (1 - targets_stack) * torch.log(1 - predictions))
-
-    def posterior_predictive(self, q_f: torch.distributions.Distribution):
-        # p(t_*|x_*, D)
-        if isinstance(q_f, torch.distributions.Normal):
-            fn_means = q_f.mean
-            fn_vars = q_f.variance
-        elif isinstance(q_f, torch.distributions.MultivariateNormal):
-            fn_means = q_f.mean
-            fn_vars = q_f.covariance_matrix.diagonal()
-        # following Pattern Recognition and Machine Learning, Chris Bishop, pp.218-220
-        # (our fn[i] is their a).
-        # This is known as the probit approximation to the logistic function.
-        return torch.distributions.Bernoulli(probs=torch.sigmoid(fn_means / (1 + torch.pi*fn_vars/8).pow(0.5)))
