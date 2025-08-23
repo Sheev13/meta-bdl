@@ -125,7 +125,6 @@ def main(codename=None,
                         'y_dim': 1,
                         'hidden_dims': hidden_dims,
                         'prior_type': 1,
-                        'likelihood': lik,
                         'inf_dims': [50, 50],
                         'use_final_layer_targets': True,
                         'use_final_layer_noise': False,
@@ -135,7 +134,6 @@ def main(codename=None,
         model_kwargs = {'x_dim': 1,
                         'y_dim': 1,
                         'hidden_dims': hidden_dims,
-                        'likelihood': lik,
                         'scale_prior': scale_prior,
                         'nonlinearity': nonlinearity}
         if model_name.lower() == 'givi':
@@ -179,7 +177,7 @@ def main(codename=None,
 
     results = {}
 
-
+    print(f"Model type: {model_name}. Seed: {seed}")
     # core experiment here, i.e. actually train and evaluate models.
     for i, sigma_y in enumerate(sigma_y_list):
         print(f"On step {i+1} of {num_sigma_ys}. sigma_y={sigma_y}")
@@ -192,7 +190,7 @@ def main(codename=None,
             if model_name.lower() == 'meta_bdnp':
                 md = [data_generating_func(n_range=[5, 50], **data_generating_kwargs) for _ in range(num_bdnp_datasets)]
                 training_kwargs['md'] = md
-            training_stint = training_alg(model, training_steps=10_000, **training_kwargs)
+            training_stint = training_alg(model, training_steps=20_000, **training_kwargs)
             
 
             fig, axes = plt.subplots(1, len(training_stint), figsize=(3*len(training_stint), 1))
@@ -219,9 +217,11 @@ def main(codename=None,
             k = sigma_y.item()
             if model_name == 'mc':
                 if i < 6:
-                    s = 10_000_000 # crank this up when using cluster
+                    s = 100_000_000 # crank this up to 100M or so when using cluster.
                 else:
-                    s = 1_000_000 # for larger sigma_y this is fine, even fewer is also fine e.g. 10k.
+                    s = 10_000_000 # for larger sigma_y fewer samples are fine, even as few as e.g. 10k.
+                model_kwargs['likelihood'] = lik
+                model = model_class(**model_kwargs)
                 lml = model.log_marginal_likelihood(X, Y, s)
                 results[k] = lml.cpu().item()
             elif 'bdnp' in model_name.lower():
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default=None, help='Which model to run the experiment for.')
     parser.add_argument('--dataset', type=str, default='bnn', help='Type of function/dataset')
     parser.add_argument('--hidden_dims', type=int, nargs='+', default=[20, 20], help='hidden layer dimensions of BNNs')
-    parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
+    parser.add_argument('--learning_rate', type=float, default=5e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--num_sigma_ys', type=int, default=40, help='Number of different likelihood noise variances to evaluate.')
     parser.add_argument('--min_sigma_y', type=float, default=0.01, help='Lower value of sigma_y range.')

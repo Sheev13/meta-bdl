@@ -1,0 +1,19 @@
+{
+    "codename": "givi_final",
+    "model_name": "givi",
+    "dataset": "bnn",
+    "hidden_dims": [
+        20,
+        20
+    ],
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "num_sigma_ys": 40,
+    "min_sigma_y": 0.01,
+    "max_sigma_y": 10.0,
+    "num_bdnp_datasets": 50000,
+    "seed": 69,
+    "scale_prior": true,
+    "nonlinearity": "relu",
+    "use_gpu": false
+}

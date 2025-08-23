@@ -5,14 +5,11 @@
 #SBATCH --error=experiments/elbo/slurm_logs/%A_%a.err
 #SBATCH --array=0-31
 
-#SBATCH --partition=gpu_p
-#SBATCH --qos=gpu_normal
-#SBATCH --mem=64G
-#SBATCH --constraint="[a100_80gb|h100_80gb]"
-#SBATCH --cpus-per-task=4
+#SBATCH --partition=cpu_p
+#SBATCH --qos=cpu_normal
+#SBATCH --mem=200G
+#SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00
-#SBATCH --ntasks=1
-#SBATCH --gres=gpu:4
 #SBATCH --nice=1000
 
 #SBATCH --mail-user=thomas.rochussen@helmholtz-munich.de
@@ -35,8 +32,7 @@ seed=${seeds[$seed_idx]}
 
 # Run your script with arguments
 python experiments/elbo/elbo.py \
-    --codename codename \
-    --model_name model \
-    --seed seed \
+    --codename $codename \
+    --model_name $model \
+    --seed $seed \
     --scale_prior \
-    --use_gpu

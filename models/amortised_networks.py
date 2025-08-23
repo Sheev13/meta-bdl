@@ -81,7 +81,7 @@ class BDNP(nn.Module):
             for l in self.layers:
                 l.prior.trainable(flag, just_mean=just_mean)
 
-    def forward(self, Xt, Xc=None, Yc=None, return_kl=False, num_samples=1, update_prev=False, save_stuff=False):
+    def forward(self, Xt, Xc=None, Yc=None, return_kl=False, num_samples=1, update_prev=False, save_stuff=False, batch_size=None):
         # Xt shape (Nt, x_dim), Xc shape (Nc, x_dim)
         Xt_prev = Xt.clone().unsqueeze(0).repeat((num_samples, 1, 1))
         if Xc is None:
@@ -93,43 +93,52 @@ class BDNP(nn.Module):
         cum_kl = torch.tensor(0.0)
         prev_weights = []
         for i, layer in enumerate(self.layers):
-            lcp = None
-            if self.prior_type == 3:
-                lcp = self.prior(previous_layer_weights=prev_weights, first_layer=(i==0))
-            ols = None
-            if i == len(self.dims) - 2:
-                if self.use_final_layer_noise:
-                    ols = self.likelihood.sigmas.log()
-            outputs = layer(Xt_prev,
-                            Xc_prev,
-                            Xc,
-                            Yc,
-                            layerwise_conditional_prior=lcp,
-                            output_log_sigmas=ols,
-                            return_kl=return_kl,
-                            return_weights=(self.prior_type==3),
-                            num_samples=num_samples,
-                            update_prev=update_prev,
-                            save_stuff=save_stuff              
-                           )
+            if batch_size is not None:
+                assert self.prior_type in [0, 1]
+                assert self.use_final_layer_noise == False
+                outputs = layer.minibatched_forward(Xt_prev,
+                                                    Xc_prev,
+                                                    Xc,
+                                                    Yc,
+                                                    return_kl=return_kl,
+                                                    num_samples=num_samples,
+                                                    batch_size=batch_size,
+                                                   )
+            else:
+                lcp = None
+                if self.prior_type == 3:
+                    lcp = self.prior(previous_layer_weights=prev_weights, first_layer=(i==0))
+                ols = None
+                if i == len(self.dims) - 2:
+                    if self.use_final_layer_noise:
+                        ols = self.likelihood.sigmas.log()
+                outputs = layer(Xt_prev,
+                                Xc_prev,
+                                Xc,
+                                Yc,
+                                layerwise_conditional_prior=lcp,
+                                output_log_sigmas=ols,
+                                return_kl=return_kl,
+                                return_weights=(self.prior_type==3),
+                                num_samples=num_samples,
+                                update_prev=update_prev,
+                                save_stuff=save_stuff              
+                            )
+                if self.prior_type == 3:
+                    prev_weights.append(outputs[-1])
+
+
             Xt_prev, Xc_prev = outputs[0], outputs[1]
             if return_kl:
                 cum_kl += outputs[2]
-                if self.prior_type == 3:
-                    prev_weights.append(outputs[3])
-            elif self.prior_type == 3:
-                prev_weights.append(outputs[2])
         
-        return Xt_prev, Xc_prev, cum_kl
-    
-    def minibatched_posterior_sample(self, context_dataloader):
-        pass
+        return self.likelihood(Xt_prev), self.likelihood(Xc_prev), cum_kl
 
-    def loss(self, Xc, Yc, Xt=None, Yt=None, num_samples=1, use_kl=True, logsumexp=False, pp_avi=False, **kwargs):
+    def loss(self, Xc, Yc, Xt=None, Yt=None, num_samples=1, use_kl=True, logsumexp=False, pp_avi=False, batch_size=None, **kwargs):
         metrics = {}
         if Xt is None:
             Xt, Yt = Xc, Yc
-        pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=use_kl, num_samples=num_samples)
+        pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=use_kl, num_samples=num_samples, batch_size=batch_size)
         if pp_avi:
             trgt_ppl = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
             ctxt_ell = self.likelihood.log_prob(pred_c, Yc).mean(0).sum() # average over samples, sum over batch
@@ -159,7 +168,7 @@ class BDNP(nn.Module):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
 
-        return - elbo, metrics
+        return - loss, metrics
 
 
 

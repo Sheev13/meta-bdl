@@ -1,0 +1,14 @@
+{
+    "num_datasets": 100000,
+    "function_type": "heaviside",
+    "architecture": [
+        48,
+        48
+    ],
+    "nonlinearity": "tanh",
+    "training_steps": 20000,
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "loss_function": "pp-avi",
+    "use_gpu": true
+}

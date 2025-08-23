@@ -17,6 +17,7 @@ def train_meta_model(
     learning_rate: float = 1e-2,
     num_samples: int = 1,
     batch_size: Optional[int] = None,
+    within_task_batch_size: Optional[int] = None,
     final_learning_rate: Optional[float] = None,
     max_gradient: Optional[float] = None,
     use_gpu: bool = False,
@@ -132,7 +133,11 @@ def train_meta_model(
                 dataset_iterator = iter(dataloader)
                 (X, y) = next(dataset_iterator)
 
-            X, y = X.squeeze(0), y.squeeze(0)
+            if X.device != device:
+                X = X.to(device)
+                y = y.to(device)
+
+            X, y = X.squeeze(0), y.squeeze(0).to(device)
             if task_subsample_fraction is not None:
                 b = int(task_subsample_fraction * X.shape[0])
                 b_inds = torch.randperm(X.shape[0])[:b]
@@ -147,22 +152,22 @@ def train_meta_model(
                 X_t, y_t = X, y
             if loss_function == 'npml': # neural process maximum likelihood (expected log likelihood if sampling)
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, minibatch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, minibatch_size=within_task_batch_size)
             elif loss_function == 'mpl': # maximum predictive likelihood (log expected likelihood if sampling)
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True, minibatch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True, minibatch_size=within_task_batch_size)
             elif loss_function == 'pp-avi': # posterior-predictive AVI
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True)
+                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True, minibatch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True)
+                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True, minibatch_size=within_task_batch_size)
             elif loss_function == 'npvi': # neural process variational inference (i.e. KL is between two approx. posteriors)
                 try:
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
@@ -171,10 +176,10 @@ def train_meta_model(
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
             elif 'avi' in loss_function: # AVI, P-AVI, or PO-AVI
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, minibatch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, minibatch_size=within_task_batch_size)
             else:
                 raise ValueError(f"Unrecognised loss function: {loss_function}.")
 
@@ -267,6 +272,7 @@ def train_variational_model(
             torch.set_default_dtype(torch.float32)
             model.to(device, dtype=torch.float32)
             print("Moving dataset to device...")
+            X, y = dataset
             dataset = (X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32))
             print("Done.")
         else:

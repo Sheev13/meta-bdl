@@ -9,9 +9,9 @@ import argparse
 import json
 from typing import List, Optional, Tuple
 
-import models
 from utils.training import train_meta_model
 from utils.data_utils import ctxt_trgt_split, obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please
+from utils.bnn_prior import GaussianBNNPrior
 from base_networks.base_architectures import Sin, SharpTanh
 
 
@@ -49,8 +49,17 @@ def heaviside_function(x_range=[-4.0, 4.0], l=1.0, n=200):
 
     return X.squeeze(), discrete_f_x.squeeze()
 
+
+def bnn_function(x_range=[-4.0, 4.0], n=200, hidden_dims=[128, 128], scale_prior=True, nonlinearity=torch.nn.ReLU()):
+    X = torch.linspace(*x_range, n).unsqueeze(-1)
+    bnn_prior = GaussianBNNPrior(1, 1, hidden_dims, scale_prior=scale_prior, nonlinearity=nonlinearity)
+    f_x = bnn_prior(X, num_samples=1).squeeze(0)
+
+    return X.squeeze(), f_x.squeeze()
+
+
 def get_function_samples(function, num_samples=100, granularity=200):
-    assert function.lower() in ['sawtooth', 'heaviside']
+    assert function.lower() in ['sawtooth', 'heaviside', 'bnn']
     if function.lower() == 'sawtooth':
         func_kwargs = {'x_range': [-2.0, 2.0],
                        'p': 0.75,
@@ -60,9 +69,12 @@ def get_function_samples(function, num_samples=100, granularity=200):
                        'random_gradient': False,
                        'n': granularity}
         func = sawtooth_function
-    else:
+    elif function.lower() == 'heaviside':
         func_kwargs = {'x_range': [-4.0, 4.0], 'l': 1, 'n': granularity}
         func = heaviside_function
+    else:
+        func_kwargs = {'x_range': [-4.0, 4.0], 'n': granularity}
+        func = bnn_function
 
     func_samps = [func(**func_kwargs) for _ in range(num_samples)]
 
@@ -87,7 +99,7 @@ def main(num_samples=100, granularity=200, use_gpu=False):
         torch.set_default_device(device)
         torch.set_default_dtype(torch.float64)
 
-    for function in ['sawtooth', 'heaviside']:
+    for function in ['sawtooth', 'heaviside', 'bnn']:
 
         func_samps = get_function_samples(function, num_samples=num_samples, granularity=granularity)
         if function.lower() == 'sawtooth':

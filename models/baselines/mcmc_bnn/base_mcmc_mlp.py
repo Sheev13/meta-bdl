@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import List, Tuple
 from abc import ABC, abstractmethod
-from collections import accumulate
+from itertools import accumulate
 
 class MCMC_BNN_Layer(nn.Module):
     def __init__(self,
@@ -45,7 +45,7 @@ class MCMC_BNN_Layer(nn.Module):
         w = w.reshape((self.d_out, self.d_in+1))
         phi_X = self.nonlinearity(X)
 
-        aug_X = torch.cat((phi_X, torch.ones((X.shape[0], X.shape[1], 1))), dim=-1) # shape (batch, d_in+1)
+        aug_X = torch.cat((phi_X, torch.ones((X.shape[0], 1))), dim=-1) # shape (batch, d_in+1)
 
         out = aug_X @ w.transpose(-2, -1)
 
@@ -67,7 +67,7 @@ class MCMC_BNN(nn.Module, ABC):
         super().__init__()
 
         dims = [x_dim] + hidden_dims + [y_dim]
-        weights_per_layer = [dims[i] * (dims[i+1]+1) for i in range(len(dims) - 1)]
+        weights_per_layer = [(dims[i]+1) * dims[i+1] for i in range(len(dims) - 1)]
         cumulative_weights_per_layer = [0] + list(accumulate(weights_per_layer))
         num_weights = cumulative_weights_per_layer[-1]
         assert num_weights == sum(weights_per_layer)
@@ -95,6 +95,13 @@ class MCMC_BNN(nn.Module, ABC):
             layers.append(MCMC_BNN_Layer(dims[i], dims[i+1], scale_prior=self.scale_prior, nonlinearity=nl, residual=self.residual))
 
         self.layers = layers
+
+    def adopt_prior(self, layerwise_list):
+        # layerwise_list is a list of (m, S) tuples for each layer.
+        # each m is of shape (d_out, d_in+1)
+        # each S is of shape (d_out, d_in+1, d_in+1)
+        for i, prior_params in enumerate(layerwise_list):
+            self.layers[i].adopt_prior(*prior_params)
     
     def weights_to_layerwise_vectors(self, W: torch.Tensor):
         assert len(W.shape) == 1
@@ -106,6 +113,10 @@ class MCMC_BNN(nn.Module, ABC):
         for i, w in enumerate(layerwise_weights):
             X = self.layers[i](X, w)
         return X
+    
+    def batch_forward(self, X: torch.Tensor, W: torch.Tensor):
+        # W is shape (num_samples, self.num_weights)
+        return torch.stack([self(X, W_i) for W_i in W])
     
     def log_likelihood(self, X: torch.Tensor, Y: torch.Tensor, W: torch.Tensor):
         pred_Y = self(X, W)
@@ -121,8 +132,9 @@ class MCMC_BNN(nn.Module, ABC):
         return - (ll + lp)
     
     def grad_U(self, X: torch.Tensor, Y: torch.Tensor, W: torch.Tensor):
-        W.requires_grad = True
-        return torch.autograd.grad(self.U(X, Y, W), W)[0]
+        # W.requires_grad = True
+        W_copy = W.clone().detach().requires_grad_(True)
+        return torch.autograd.grad(self.U(X, Y, W_copy), W_copy)[0]
     
     def sample_from_prior(self):
         out = torch.zeros((self.num_weights,))
@@ -145,7 +157,7 @@ class LMC_BNN(MCMC_BNN):
         super().__init__(*args, **kwargs)
 
     def get_proposal(self, X: torch.Tensor, Y: torch.Tensor, W: torch.Tensor, step_size: float = 1e-4):
-        return (W - (step_size / 2) * self.grad_U(X, Y) + torch.sqrt(torch.tensor(step_size)) * torch.randn_like(W),)
+        return (W - (step_size / 2) * self.grad_U(X, Y, W) + torch.sqrt(torch.tensor(step_size)) * torch.randn_like(W),)
 
     def compute_log_proposal_prob(self, X: torch.Tensor, Y: torch.Tensor, W_curr: torch.Tensor, W_prop: torch.Tensor, step_size: float = 1e-4):
         # - 1/(2*stepsize)||q* - q - stepsize/2 * grad U(q)||^2
@@ -198,7 +210,7 @@ class HMC_BNN(MCMC_BNN):
 
         for _ in range(leapfrog_steps):
             W_new, P_new = self.execute_leapfrog_step(
-                W_new, P_new, X, Y, step_size=step_size
+                X, Y, W_new, P_new, step_size=step_size
             )
 
         return W_new, P_new
@@ -220,6 +232,7 @@ class HMC_BNN(MCMC_BNN):
                                P_curr: torch.Tensor,
                                W_prop: torch.Tensor,
                                P_prop: torch.Tensor,
+                               **lmc_stuff_to_ignore,
                               ):
         prop_ham = self.compute_hamiltonian(X, Y, W_prop, P_prop)
         curr_ham = self.compute_hamiltonian(X, Y, W_curr, P_curr)

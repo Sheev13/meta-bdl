@@ -141,37 +141,37 @@ def vis_ctxt_img(image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     if len(image.shape) == 4 and image.shape[0] == 1:
         image = image.squeeze(0)
     assert len(image.shape) == 3
-    colours = image.shape[0]
+    colours = image.shape[-1]
     assert colours in [1, 3]  # either greyscale or RGB
 
     mask = mask.bool()
     if colours == 1:
-        image = image.repeat((3, 1, 1))
+        image = image.repeat((1, 1, 3))
         blue = torch.cat(
             (
-                torch.zeros_like(mask).unsqueeze(0),
-                torch.zeros_like(mask).unsqueeze(0),
-                torch.ones_like(mask).unsqueeze(0),
+                torch.zeros_like(mask).unsqueeze(-1),
+                torch.zeros_like(mask).unsqueeze(-1),
+                torch.ones_like(mask).unsqueeze(-1),
             ),
-            dim=0,
+            dim=-1,
         )
-        image = torch.where(mask, image, blue)
+        image = torch.where(mask.unsqueeze(-1).repeat((1, 1, 3)), image, blue)
     elif colours == 3:
         grey = torch.cat(
             (
-                torch.zeros_like(mask).unsqueeze(0),
-                torch.zeros_like(mask).unsqueeze(0),
-                torch.ones_like(mask).unsqueeze(0),
+                torch.zeros_like(mask).unsqueeze(-1),
+                torch.zeros_like(mask).unsqueeze(-1),
+                torch.ones_like(mask).unsqueeze(-1),
             ),
-            dim=0,
+            dim=-1,
         )
         image = torch.where(mask, image, grey)
 
-    return image.permute(1, 2, 0)  # permutation needed for matplotlib
+    return image # shape (h, w, c)
 
 
 def img_to_dataset(img: torch.Tensor, mask: Optional[torch.Tensor] = None):
-    num_x1, num_x2 = img.shape[-2:]
+    num_x1, num_x2 = img.shape[:2]
     num_pix = num_x1 * num_x2
     x1_range = torch.linspace(-1, 1, num_x1)
     x2_range = torch.linspace(-1, 1, num_x2)
@@ -179,12 +179,12 @@ def img_to_dataset(img: torch.Tensor, mask: Optional[torch.Tensor] = None):
     x1 = xm1.flatten()
     x2 = xm2.flatten()
 
-    x = torch.stack((x1, x2)).transpose(-1, -2)
-    y = img.reshape(-1, num_pix)
+    x = torch.stack((x1, x2)).transpose(-1, -2) # shape (784, 2) after transpose
+    y = img.reshape((num_pix, -1))
 
     if mask is not None:
-        x = x[mask.flatten().bool()]
-        y = y[:, mask.flatten().bool()]
+        x = x[mask.flatten().bool(), :]
+        y = y[mask.flatten().bool(), :]
 
     return x, y
 
@@ -194,7 +194,6 @@ def dataset_to_img(Y):
 
 def test_grid(image_shape: torch.Size):
     num_x1, num_x2 = image_shape
-    num_pix = num_x1 * num_x2
     x1_range = torch.linspace(-1, 1, num_x1)
     x2_range = torch.linspace(-1, 1, num_x2)
     xm1, xm2 = torch.meshgrid(x1_range, x2_range, indexing="xy")

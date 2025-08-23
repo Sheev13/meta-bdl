@@ -1,0 +1,27 @@
+{
+    "codename": "test",
+    "architecture": [
+        64,
+        64,
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "relu",
+    "residual": false,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "use_act": false,
+    "training_steps": 30000,
+    "batch_size": 5,
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "loss_function": "pp-avi",
+    "num_samples": 8,
+    "ctxt_proportion_range": [
+        0.1,
+        0.5
+    ],
+    "use_pretrained": false,
+    "use_gpu": true
+}

@@ -11,13 +11,13 @@ from typing import List, Optional, Tuple
 
 import models
 from utils.training import train_meta_model
-from utils.data_utils import ctxt_trgt_split, obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please
+from utils.data_utils import ctxt_trgt_split, obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please, obtain_me_a_nice_bnn_dataset_please
 from base_networks.base_architectures import Sin, SharpTanh
 
 
-def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sawtooth', x_range=[-5.0, 5.0]):
+def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sawtooth', x_range=[-5.0, 5.0], **bnn_kwargs):
     md = []
-    assert function_type.lower() in ['sawtooth', 'gp', 'heaviside']
+    assert function_type.lower() in ['sawtooth', 'gp', 'heaviside', 'bnn']
 
     if function_type.lower() == 'sawtooth':
         dataset_func = obtain_me_a_nice_sawtooth_dataset_please
@@ -28,6 +28,9 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
     elif function_type.lower() == 'heaviside':
         dataset_func = obtain_me_a_nice_heaviside_dataset_please
         data_hypers = {'x_range': x_range, 'l': 1, 'noise': 0.01}
+    elif function_type.lower() == 'bnn':
+        dataset_func = obtain_me_a_nice_bnn_dataset_please
+        data_hypers = {'x_range': x_range, **bnn_kwargs}
 
     for _ in range(num_datasets):
         X, y = dataset_func(n_range=n_range, **data_hypers)
@@ -128,10 +131,15 @@ def main(
         with open(PATH + f"/training-configs/{codename}-config.json", 'w') as f:
             json.dump(args_dict, f, indent=4)
 
+        bnn_kwargs = {}
+        if function_type.lower() == 'bnn':
+            bnn_kwargs = {'nonlinearity': torch.nn.ReLU(), 'hidden_dims': architecture}
+
         md = build_meta_dataset(
             num_datasets=num_datasets,
             n_range=n_range,
-            function_type=function_type
+            function_type=function_type,
+            **bnn_kwargs,
         )
 
         bdnp = init_bdnp(

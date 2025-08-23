@@ -45,6 +45,8 @@ class GaussianLikelihood(nn.Module):
     def forward(self, f: torch.Tensor):
         # represents the transformation applied to f to get to y space.
         # For regression, f and y live in the same space.
+        if f is None:
+            return None
         return f
     
     def log_prob(self, predictions: torch.Tensor = None, targets: torch.Tensor = None):
@@ -66,10 +68,12 @@ class BernoulliLikelihood(nn.Module):
         # represents the transformation applied to f to get to target space
         # for classification, the outputs must be probabilities between 0 and 1,
         # so the function must be squashed accordingly.
+        if f is None:
+            return None
         return torch.sigmoid(f).clamp(min=1e-5, max=1.0-1e-5)
     
     def log_prob(self, predictions: torch.Tensor = None, targets: torch.Tensor = None):
         # computes the log-likelihood. This is needed e.g. in ELBO for Monte Carlo
         # estimate of expected log-likelihood w.r.t. posterior distribution.
-        targets_stack = targets.unsqueeze(0).repeat((predictions.shape[0], 1))
+        targets_stack = targets.unsqueeze(0).repeat((predictions.shape[0], 1, 1))
         return (targets_stack * torch.log(predictions) + (1 - targets_stack) * torch.log(1 - predictions))

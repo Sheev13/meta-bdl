@@ -92,6 +92,102 @@ class AmortisedLinearLayer(nn.Module):
             q_w = compute_layerwise_posterior(X, Y, log_sigmas, layerwise_conditional_prior)
 
         return q_w
+    
+
+    def minibatched_forward(self,
+                            Xt_prev_l,
+                            Xc_prev_l=None,
+                            Xc=None, 
+                            Yc=None,
+                            return_kl=False,
+                            num_samples=1,
+                            batch_size=50,
+                        ):
+        """an implementation of the minibatched forward pass. Only implemented for most common usage configuration of BDNP."""
+        if Xc is None or Yc is None or Xc_prev_l is None:
+            raise ValueError("User must specify all three of Xc, Yc, Xc_prev_l for minibatched forward pass.")
+        if self.global_noise:
+            raise ValueError("Minibatched forward pass does not support using observation noise in posterior computation.")
+        
+        # main minibatching loop here:
+        num_batches = (Xc.shape[0] + batch_size - 1) // batch_size
+        q_w = self.prior()
+        for b in range(num_batches):
+            start = b * batch_size
+            end = min(start + batch_size, Xc.shape[0])
+            Xc_b = Xc[start:end,:] # shape (batch_size, x_dim)
+            Yc_b = Yc[start:end,:] # shape (batch_size, y_dim)
+            Xc_b_prev_l = Xc_prev_l[:,start:end,:] # shape (samples, batch_size, d_in)
+        
+            if self.inf_net_use_act:
+                Xc_b_rep = Xc_b.unsqueeze(0).repeat((num_samples, 1, 1))
+                Yc_b_rep = Yc_b.unsqueeze(0).repeat((num_samples, 1, 1))
+                z = torch.cat((Xc_b_rep, Xc_b_prev_l, Yc_b_rep), dim=-1) # shape (num_samples, batch_size, x_dim+y_dim+d_in)
+            else:
+                z = torch.cat((Xc_b, Yc_b), dim=-1) # shape (batch_size, x_dim+y_dim)
+
+            if self.targets_available:
+                Yc_b_l = Yc_b
+                log_sigmas = self.inf_net(z) - 2
+            else:
+                Yc_b_l, log_sigmas = self.inf_net(z).chunk(chunks=2, dim=-1) # each of shape (batch_size, y_dim) or (num_samples, batch_size, y_dim)
+                log_sigmas = log_sigmas - 2
+            
+            # handle nonlinearities and biases for context inputs
+            if self.first_layer:
+                Xc_b_prev_l_phi = torch.cat((Xc_b_prev_l, torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1) 
+            else:
+                Xc_b_prev_l_phi = torch.cat((self.nonlinearity(Xc_b_prev_l), torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1)
+
+            if len(Yc_b_l.shape) == 3 and len(log_sigmas.shape) == 2:
+                log_sigmas = log_sigmas.unsqueeze(0).repeat((num_samples, 1, 1))
+
+            q_w = compute_unitwise_posteriors(Xc_b_prev_l_phi, Yc_b_l, log_sigmas, q_w) # use previous q as prior.
+
+        W = q_w.rsample() # sample weights from full posterior
+
+        samples = W.shape[0]
+        if len(W.shape) == 2: # shape (samples, d_out*(d_in+1))
+            W = W.reshape((samples, self.d_out, self.d_in+1)).transpose(-2, -1)
+        else: # shape (samples, d_out, d_in+1)
+            W = W.transpose(-2, -1)
+        # now weights are shape (samples, d_in+1, d_out)
+
+        # handle nonlinearities and biases for target inputs and *full* context set
+        if self.first_layer:
+            Xt_prev_l_phi = torch.cat((Xt_prev_l, torch.ones((*Xt_prev_l.shape[:2], 1))), dim=-1)
+            Xc_prev_l_phi = torch.cat((Xc_prev_l, torch.ones((*Xc_prev_l.shape[:2], 1))), dim=-1) 
+        else:
+            Xt_prev_l_phi = torch.cat((self.nonlinearity(Xt_prev_l), torch.ones((*Xt_prev_l.shape[:2], 1))), dim=-1)
+            Xc_prev_l_phi = torch.cat((self.nonlinearity(Xc_prev_l), torch.ones((*Xc_prev_l.shape[:2], 1))), dim=-1)
+        # now Xt_prev_l_phi has shape (samples, Nt, d_in+1)
+
+        Xt_l = Xt_prev_l_phi @ W # shape (samples, Nt, d_out)
+        if self.residual:
+            Xt_l += Xt_prev_l
+        Xc_l = None
+        if Xc_prev_l is not None:
+            Xc_l = Xc_prev_l_phi @ W
+            if self.residual:
+                Xc_l += Xc_prev_l
+
+        outputs = [Xt_l, Xc_l]
+
+        # if we are training, compute KL divergence here
+        if return_kl:
+            if self.prior_type == 0:
+                p_mu = self.prior().mean.unsqueeze(0) # shape (1, d_out, d_in+1)
+                p_var = self.prior().variance.unsqueeze(0) # shape (1, d_out, d_in+1)
+                p = torch.distributions.MultivariateNormal(p_mu, p_var.diag_embed())
+            else:
+                p = self.prior()
+            
+            kl = torch.distributions.kl_divergence(q_w, p).mean(0).sum() # average over samples, sum over independent bits of W
+
+            outputs.append(kl)
+
+        return outputs
+    
 
 
     def forward(self,

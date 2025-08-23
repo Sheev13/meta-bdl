@@ -1,0 +1,25 @@
+{
+    "codename": "super_res_test",
+    "architecture": [
+        128,
+        128
+    ],
+    "nonlinearity": "relu",
+    "residual": false,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "use_act": false,
+    "training_steps": 1,
+    "batch_size": 5,
+    "within_task_batch_size": 50,
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "loss_function": "pp-avi",
+    "num_samples": 8,
+    "ctxt_proportion_range": [
+        0.1,
+        0.5
+    ],
+    "use_pretrained": false,
+    "use_gpu": true
+}

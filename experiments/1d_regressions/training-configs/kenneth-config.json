@@ -19,15 +19,15 @@
     "use_act": false,
     "training_steps": 20000,
     "batch_size": 5,
-    "learning_rate": 0.001,
+    "learning_rate": 0.003,
     "final_learning_rate": 5e-05,
-    "loss_function": "pp-avi",
-    "num_samples": 8,
+    "loss_function": "mpl",
+    "num_samples": 20,
     "release_prior_at_step": 0,
     "ctxt_proportion_range": [
         0.1,
         0.9
     ],
     "train_new_model": true,
-    "use_gpu": false
+    "use_gpu": true
 }

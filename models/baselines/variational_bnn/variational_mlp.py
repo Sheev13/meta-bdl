@@ -43,7 +43,7 @@ class BaseGaussianVIBNN(nn.Module, ABC):
         # layerwise_list is a list of (m, S) tuples for each layer.
         # each m is of shape (d_out, d_in+1)
         # each S is of shape (d_out, d_in+1, d_in+1)
-        for i, prior_params in layerwise_list:
+        for i, prior_params in enumerate(layerwise_list):
             self.layers[i].adopt_prior(*prior_params)
 
     def forward(self, X, num_samples=1, return_kl=False):
