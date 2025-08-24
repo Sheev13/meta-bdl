@@ -42,8 +42,6 @@ def main(prior=None,
          hidden_dims=[48, 48],
          num_test_sets=16,
          function_type='sawtooth',
-         burn=250,
-         thin=100,
          use_gpu=False,
          ):
     
@@ -202,14 +200,20 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 1e-5
+                step_size = 1e-4
+                steps = 10_000
+                burn = 1000
+                thin = 50
             else:
                 step_size = 1e-5
+                steps = 1_000_000
+                burn = 25_000
+                thin = 10_000
             raw_samples, training_metrics = run_mcmc(model,
                                         Xc,
                                         yc,
                                         algorithm=model_name.lower(),
-                                        steps=10_000,
+                                        steps=steps,
                                         step_size=step_size,
                                         minibatch_size=None, # full-batch
                                         metropolis_adjusted=True,
@@ -287,8 +291,6 @@ if __name__ == "__main__":
     parser.add_argument('--hidden_dims', type=int, nargs='+', default=[48, 48], help='Hidden layer dims of BNNs.')
     parser.add_argument('--num_test_sets', type=int, default=16, help='Number of test datasets for evaluation.')
     parser.add_argument('--function_type', type=str, default='sawtooth', help='Type of function/dataset.')
-    parser.add_argument('--burn', type=int, default=1000, help='Number of initial MCMC samples to discard for burn-in period.')
-    parser.add_argument('--thin', type=int, default=100, help='Use every [thin] samples from MCMC chain to reduce sample correlations.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
 
     args = parser.parse_args()
