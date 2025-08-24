@@ -42,6 +42,7 @@ def run_mcmc(model: MCMC_BNN,
 
     num_w = model.num_weights
     posterior_samples = torch.zeros((steps, num_w))
+    momenta = torch.zeros((steps, num_w))
     acceptance_counter = 0
     W = model.sample_from_prior()
     if hmc:
@@ -49,14 +50,14 @@ def run_mcmc(model: MCMC_BNN,
 
     iter_pbar = tqdm(range(steps), file=sys.stdout)
     tracker = defaultdict(list)
+    current_stuff = [W]
+    if hmc:
+        current_stuff.append(P)
 
     for step in iter_pbar:
         if minibatch_size is not None:
             X, Y = subsample(full_X, full_Y, minibatch_size)
         metrics = defaultdict(float)
-        current_stuff = [W]
-        if hmc:
-            current_stuff.append(P)
         proposed_stuff = model.get_proposal(X, Y, *current_stuff, step_size=step_size, **hmc_kwargs)
         if metropolis_adjusted:
             log_alpha = model.compute_log_acceptance(
@@ -65,18 +66,23 @@ def run_mcmc(model: MCMC_BNN,
             u = torch.rand((1,))
             if u < log_alpha.exp():
                 # accept the sample
-                posterior_samples[step] = proposed_stuff[0]
+                accepted_stuff = proposed_stuff
                 acceptance_counter += 1
             else:
                 # reject the sample
-                posterior_samples[step] = current_stuff[0]
+                accepted_stuff = current_stuff
         else:
-            posterior_samples[step] = proposed_stuff[0]
+            accepted_stuff = proposed_stuff
             acceptance_counter += 1
+
+        current_stuff = accepted_stuff
+        posterior_samples[step] = accepted_stuff[0]
+        if algorithm == 'hmc':
+            momenta[step] = accepted_stuff[1]
 
         with torch.no_grad():
             metrics["log-lik"] = model.log_likelihood(X, Y, posterior_samples[step]).item()
-            metrics["log-prior"] = model.log_prior(W).item()
+            metrics["log-prior"] = model.log_prior(posterior_samples[step]).item()
             metrics["log potential"] = - (metrics["log-lik"] + metrics["log-prior"])
         
             if metropolis_adjusted:
