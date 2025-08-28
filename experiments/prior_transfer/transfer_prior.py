@@ -9,7 +9,6 @@ import json
 
 import models
 from models import baselines
-from models.baselines.mcmc_bnn.mcmc import run_mcmc
 from utils.training import train_variational_model
 from utils.data_utils import obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please, ctxt_trgt_split
 from utils.mcmc_utils import autocorrelation_array
@@ -132,6 +131,8 @@ def main(prior=None,
                         'nonlinearity': nl}
         if model_name.lower() == 'givi':
             model_kwargs['num_inducing'] = 10
+        elif model_name.lower() == 'swag':
+            model_kwargs['K'] = 64
     
     if model_name == 'mfvi':
         model_class = baselines.MFVIBNN
@@ -143,6 +144,8 @@ def main(prior=None,
         model_class = baselines.HMC_BNN
     elif model_name == 'lmc':
         model_class = baselines.LMC_BNN
+    elif model_name == 'swag':
+        model_class == baselines.SWAG_BNN
 
     if (model_name.lower() == 'bdnp') and (prior.lower() != 'bnn'):
         model = torch.load(PATH + f'/saved_models/{prior}', weights_only=False)
@@ -209,7 +212,7 @@ def main(prior=None,
                 steps = 1_000_000
                 burn = 25_000
                 thin = 10_000
-            raw_samples, training_metrics = run_mcmc(model,
+            raw_samples, training_metrics = baselines.run_mcmc(model,
                                         Xc,
                                         yc,
                                         algorithm=model_name.lower(),
@@ -228,7 +231,15 @@ def main(prior=None,
                 pred_yt = model.batch_forward(Xt, samples)
                 pred_samps = model.batch_forward(xs, samples)
                 num_samples = pred_yt.shape[0]
-            
+
+
+        elif model_name.lower() == 'swag':
+            pretraining_metrics = baselines.pretrain(model, Xc, yc, training_steps=5_000, learning_rate=5e-3)
+            training_metrics = baselines.run_SWAG(model, Xc, yc, learning_rate=1e-2, swa_steps=100, c=25)
+            num_samples=1000
+            with torch.no_grad():
+                pred_samps = model.bma_forward(xs, num_samples=100)
+                pred_yt = model.bma_forward(xs, num_samples)
     
 
 
@@ -239,6 +250,7 @@ def main(prior=None,
                 if model_name.lower() == 'bdnp':
                     pred_samps = model(xs, Xc, yc, num_samples=100)[0]
                     pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+
         
         else:        ###### plot training metrics for all other models (i.e. not the pre-trained BDNP case) ######
             fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
@@ -256,6 +268,18 @@ def main(prior=None,
 
             plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
             plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
+            plt.close()
+
+        if model_name.lower() == 'swag':
+            fig, axes = plt.subplots(1, len(pretraining_metrics), figsize=(3*len(pretraining_metrics), 1))
+            omitted_steps = 0
+            for i, (key, value) in enumerate(training_metrics.items()):
+                axes[i].plot(value[omitted_steps:])
+                axes[i].set_xlabel(key)
+                axes[i].grid()
+
+            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/pretraining.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/pretraining.png", bbox_inches="tight")
             plt.close()
 
 

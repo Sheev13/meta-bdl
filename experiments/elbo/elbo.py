@@ -195,17 +195,17 @@ def main(codename=None,
 
             fig, axes = plt.subplots(1, len(training_stint), figsize=(3*len(training_stint), 1))
             omitted_steps = 0
-            for i, (key, value) in enumerate(training_stint.items()):
-                axes[i].set_title(f"sigma_y={sigma_y.item()}")
-                axes[i].plot(value[omitted_steps:])
-                axes[i].set_xlabel(key)
-                axes[i].grid()
+            for j, (key, value) in enumerate(training_stint.items()):
+                axes[j].set_title(f"sigma_y={sigma_y.item()}")
+                axes[j].plot(value[omitted_steps:])
+                axes[j].set_xlabel(key)
+                axes[j].grid()
                 if key == 'elbo':
-                    axes[i].set_ylim([-1000, 100])
+                    axes[j].set_ylim([-1000, 100])
                 elif key == 'e_ll':
-                    axes[i].set_ylim([-1000, 200])
+                    axes[j].set_ylim([-1000, 200])
                 elif key == 'kl':
-                    axes[i].set_ylim([0, 500])
+                    axes[j].set_ylim([0, 500])
 
             plt.savefig(PATH + f"/figs/training/{seed}/{codename}/pdfs/stint_{i}.pdf", bbox_inches="tight")
             plt.savefig(PATH + f"/figs/training/{seed}/{codename}/pngs/stint_{i}.png", bbox_inches="tight")

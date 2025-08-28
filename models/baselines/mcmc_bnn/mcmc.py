@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from models.baselines.mcmc_bnn.base_mcmc_mlp import MCMC_BNN
+from models.baselines.mcmc_bnn.mcmc_mlp import MCMC_BNN
 from tqdm import tqdm
 from collections import defaultdict
 from typing import Optional
