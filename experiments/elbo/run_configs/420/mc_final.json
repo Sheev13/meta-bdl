@@ -15,5 +15,5 @@
     "seed": 420,
     "scale_prior": true,
     "nonlinearity": "relu",
-    "use_gpu": true
+    "use_gpu": false
 }
