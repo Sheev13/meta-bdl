@@ -29,17 +29,26 @@ def get_colours():
     return colours
 
 
-def main(modelname_codename: json.loads, seeds: List[int] = [21, 42, 69, 420]):
-
+def main():
     PATH = str(Path(__file__).resolve().parent)
     Path(PATH + "/figs/results").mkdir(parents=True, exist_ok=True)
+    seeds = [21, 42, 69, 420]
+    modelname_codename = {"bdnp": "bdnp_final",
+                          "fcvi": "fcvi_final",
+                          "givi": "givi_final",
+                          "lcvi": "lcvi_final",
+                          "mc": "mc_final",
+                          "meta_bdnp": "meta_bdnp_final",
+                          "mfvi": "mfvi_final",
+                          "ucvi": "ucvi_final"
+                          }
 
     fig, axes = plt.subplots(1, 1, figsize=(10.5, 3))
     marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
     colours = get_colours()
     axes.grid(alpha=0.5)
     mc_y = None
-    for i, (model, code) in enumerate(modelname_codename):
+    for i, (model, code) in enumerate(modelname_codename.items()):
         ys = []
         for seed in seeds:
             with open(PATH + f"/results/{seed}/{code}.json", "r") as f:
@@ -59,9 +68,9 @@ def main(modelname_codename: json.loads, seeds: List[int] = [21, 42, 69, 420]):
             lab = 'LML'
         if model.lower() == 'meta_bdnp':
             lab = 'BDNP (meta)'
-        axes.scatter(x, y_means.item(), label=lab, color=c, marker=m, zorder=1000, s=10)
-        axes.plot(x, y_means.item(), color=c)
-        axes.fill_between(x, (y_means-2*y_stds).item(), (y_means+2*y_stds).item(), color=c, alpha=0.2)
+        axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=10)
+        axes.plot(x, y_means.tolist(), color=c)
+        axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
         axes.set_xlabel(r'$\sigma_y$')
         axes.set_ylabel('ELBO/LML')
         axes.set_xscale('log')
@@ -83,7 +92,7 @@ def main(modelname_codename: json.loads, seeds: List[int] = [21, 42, 69, 420]):
         fig, axes = plt.subplots(1, 1, figsize=(10.5, 3))
         marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
         axes.grid(alpha=0.5)
-        for i, (model, code) in enumerate(modelname_codename):
+        for i, (model, code) in enumerate(modelname_codename.items()):
             if model == 'mc':
                 continue
             ys = []
@@ -103,9 +112,9 @@ def main(modelname_codename: json.loads, seeds: List[int] = [21, 42, 69, 420]):
                 lab = 'LML'
             if model.lower() == 'meta_bdnp':
                 lab = 'BDNP (meta)'
-            axes.scatter(x, y_means.item(), label=lab, color=c, marker=m, zorder=1000, s=10)
-            axes.plot(x, y_means.item(), color=c)
-            axes.fill_between(x, (y_means-2*y_stds).item(), (y_means+2*y_stds).item(), color=c, alpha=0.2)
+            axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=10)
+            axes.plot(x, y_means.tolist(), color=c)
+            axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
             axes.set_xlabel(r'$\sigma_y$')
             axes.set_ylabel(r'$KL[q(\mathbf{W}|\mathcal{D})\|p(\mathbf{W}|\mathcal{D})]$')
             axes.set_xscale('log')
@@ -125,9 +134,4 @@ def main(modelname_codename: json.loads, seeds: List[int] = [21, 42, 69, 420]):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BDNP experiment 2")
-    parser.add_argument('--modelname_codename', type=json.loads, required=True, help='Modelname-Codename pairs to be included in plot.')
-    parser.add_argument('--seeds', type=int, nargs='+', default=[21, 42, 69, 420], help='Which seeds were used in the experiment.')
-
-    args = parser.parse_args()
-    main(**vars(args))
+    main()
