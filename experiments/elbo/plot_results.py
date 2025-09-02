@@ -30,6 +30,7 @@ def get_colours():
 
 
 def main():
+    x_lim = 0.03
     PATH = str(Path(__file__).resolve().parent)
     Path(PATH + "/figs/results").mkdir(parents=True, exist_ok=True)
     seeds = [21, 42, 69, 420]
@@ -74,8 +75,8 @@ def main():
         axes.set_xlabel(r'$\sigma_y$')
         axes.set_ylabel('ELBO/LML')
         axes.set_xscale('log')
-        axes.set_ylim([-125, 25])
-        axes.set_xlim([0.01, 10.0])
+        axes.set_ylim([-80, 20])
+        axes.set_xlim([max(0.01, x_lim), 10.0])
 
     axes.spines['top'].set_alpha(0.5)
     axes.spines['right'].set_alpha(0.5)
@@ -118,8 +119,8 @@ def main():
             axes.set_xlabel(r'$\sigma_y$')
             axes.set_ylabel(r'$KL[q(\mathbf{W}|\mathcal{D})\|p(\mathbf{W}|\mathcal{D})]$')
             axes.set_xscale('log')
-            axes.set_ylim([0, 65])
-            axes.set_xlim([0.01, 10.0])
+            axes.set_ylim([0, 50])
+            axes.set_xlim([max(0.01, x_lim), 10.0])
 
         axes.spines['top'].set_alpha(0.5)
         axes.spines['right'].set_alpha(0.5)

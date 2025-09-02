@@ -254,6 +254,7 @@ def train_variational_model(
     use_gpu: bool = False,
     device_agnostic: bool = False,
     es_thresh: Optional[float] = None,
+    retain_graph: bool = False,
 ) -> Dict:
     
     # set device to gpu if user wants to and one is available.
@@ -307,7 +308,7 @@ def train_variational_model(
             print("Handled Value Error")
             loss, metrics = model.loss(X, Y, num_samples=num_samples)
         
-        loss.backward(retain_graph=True)
+        loss.backward(retain_graph=retain_graph)
 
         # clip gradients if desired.
         if max_gradient is not None:

@@ -101,8 +101,7 @@ class LCVIBNN(BaseGaussianVIBNN):
         super().__init__(*args, **kwargs)
         self.build_bnn(LCVILinearLayer)
 
-    
-####### below is incomplete, e.g. need to handle inducing points and different use of .forward()
+
 class GIVIBNN(BaseGaussianVIBNN):
     def __init__(self, *args, num_inducing=50, **kwargs):
         super().__init__(*args, **kwargs)
@@ -113,9 +112,12 @@ class GIVIBNN(BaseGaussianVIBNN):
 
     def init_inducing_points(self, X):
         assert len(X.shape) == 2
-        assert X.shape[0] == self.num_inducing
         assert X.shape[1] == self.x_dim
-        self.Z.data = X
+        if X.shape[0] >= self.num_inducing:
+            idx = torch.randperm(X.shape[0])[:self.num_inducing]
+            self.Z.data = X[idx,:]
+        else:
+            self.Z.data[:X.shape[0],:] = X
 
     def forward(self, X, num_samples=1, return_kl=False):
         # X is shape (batch, x_dim)

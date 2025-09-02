@@ -1,0 +1,12 @@
+{
+    "prior": "gp_48_48",
+    "model_name": "givi",
+    "hidden_dims": [
+        48,
+        48
+    ],
+    "num_test_sets": 16,
+    "function_type": "gp",
+    "use_gpu": true,
+    "use_shared_test_sets": true
+}

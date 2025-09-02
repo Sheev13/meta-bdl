@@ -15,5 +15,6 @@
     "seed": 42,
     "scale_prior": true,
     "nonlinearity": "relu",
-    "use_gpu": false
+    "use_gpu": true,
+    "use_shared_dataset": true
 }

@@ -1,2 +1,7 @@
 *saved_models/
 *batch_logs/
+*era5_ceurope_raw/
+*slurm_logs/
+*.out
+*.err
+*.nc

@@ -33,6 +33,7 @@ def main(codename=None,
          scale_prior=True,
          nonlinearity=nn.Tanh(),
          use_gpu=False,
+         use_shared_dataset=False,
          ):
     
     args_dict = locals()
@@ -78,9 +79,11 @@ def main(codename=None,
         else:
             print("No GPU found, falling back to CPU")
             device = torch.device('cpu')
-        torch.set_default_device(device)
-        torch.set_default_dtype(torch.float64)
-        print("device type: ", device)
+    else:
+        device = torch.device('cpu')
+    torch.set_default_device(device)
+    torch.set_default_dtype(torch.float64)
+    print("device type: ", device)
 
     Path(PATH + "/figs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/training").mkdir(parents=True, exist_ok=True)
@@ -91,31 +94,36 @@ def main(codename=None,
     Path(PATH + f"/figs/data").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results/{seed}").mkdir(parents=True, exist_ok=True)
-    
-    torch.manual_seed(69) # constant seed for this part only to ensure dame dataset every time
-    if use_gpu:
-        torch.cuda.manual_seed(69)
+
     if dataset == 'bnn':
         data_generating_func = obtain_me_a_nice_bnn_dataset_please
         data_generating_kwargs = {'x_range': [-4.0, 4.0],
-                                  'noise': 0.1,
-                                  'hidden_dims': hidden_dims,
-                                  'scale_prior': scale_prior,
-                                  'nonlinearity': nonlinearity}
+                                'noise': 0.1,
+                                'hidden_dims': hidden_dims,
+                                'scale_prior': scale_prior,
+                                'nonlinearity': nonlinearity}
     elif dataset == 'gp':
         data_generating_func = obtain_me_a_nice_gp_dataset_please
         data_generating_kwargs = {'x_range': [-4.0, 4.0],
-                                  'noise': 0.1,
-                                  'l': 1.0,
-                                  'kernel': 'se',}
-        
-    X, Y = data_generating_func(n_range=[21, 42], **data_generating_kwargs)
+                                'noise': 0.1,
+                                'l': 1.0,
+                                'kernel': 'se',}
+    
+    if use_shared_dataset:
+        data = torch.load(PATH + f"/shared_datasets/{dataset}.pt", weights_only=False)
+        X, Y = data["X"].to(device=device, dtype=torch.float64), data["Y"].to(device=device, dtype=torch.float64)
+    else:
+        torch.manual_seed(69) # constant seed for this part only to ensure dame dataset every time
+        if use_gpu:
+            torch.cuda.manual_seed(69)
+        X, Y = data_generating_func(n_range=[21, 42], **data_generating_kwargs)
+
     plt.scatter(X.cpu(), Y.cpu(), color='C1', zorder=10000)
     plt.grid()
     plt.xlim([-4.0, 4.0])
     plt.ylim([-4.0, 4.0])
-    plt.savefig(PATH + f"/figs/data/{dataset}.pdf", bbox_inches="tight")
-    plt.savefig(PATH + f"/figs/data/{dataset}.png", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/data/{model_name}-{dataset}.pdf", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/data/{model_name}-{dataset}.png", bbox_inches="tight")
     plt.close()
         
     sigma_y_list = torch.logspace(torch.tensor(min_sigma_y).log10(), torch.tensor(max_sigma_y).log10(), num_sigma_ys)
@@ -124,7 +132,7 @@ def main(codename=None,
         model_kwargs = {'x_dim': 1,
                         'y_dim': 1,
                         'hidden_dims': hidden_dims,
-                        'prior_type': 1,
+                        'prior_type': 0,
                         'inf_dims': [50, 50],
                         'use_final_layer_targets': True,
                         'use_final_layer_noise': False,
@@ -174,6 +182,8 @@ def main(codename=None,
                            'final_learning_rate': final_learning_rate,
                            'num_samples': 8,
                            'device_agnostic': True}
+        if model_name.lower() == 'givi':
+            training_kwargs['retain_graph'] = True
 
     results = {}
 
@@ -187,6 +197,8 @@ def main(codename=None,
         if model_name != 'mc':
             model_kwargs['likelihood'] = lik
             model = model_class(**model_kwargs)
+            if model_name.lower() == 'givi':
+                model.init_inducing_points(X)
             if model_name.lower() == 'meta_bdnp':
                 md = [data_generating_func(n_range=[5, 50], **data_generating_kwargs) for _ in range(num_bdnp_datasets)]
                 training_kwargs['md'] = md
@@ -250,9 +262,10 @@ if __name__ == "__main__":
     parser.add_argument('--max_sigma_y', type=float, default=10.0, help='Upper value of sigma_y range.')
     parser.add_argument('--num_bdnp_datasets', type=int, default=50_000, help='Number of datasets in meta-dataset')
     parser.add_argument('--seed', type=int, default=69, help='Manually-specified random seed.')
-    parser.add_argument('--scale_prior', action='store_true', help='Whether to use an input-dimension-scaled prior.')
+    parser.add_argument('--scale_prior', action='store_true', help='Whether to use an input-dimension-scaled prior (defaults to False).')
     parser.add_argument('--nonlinearity', type=str, default='relu', help='Elementwise-acting nonlinearity')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
+    parser.add_argument('--use_shared_dataset', action='store_true', help='Load pre-made dataset rather than constructing one from scratch (defaults to False).')
 
     args = parser.parse_args()
     main(**vars(args))

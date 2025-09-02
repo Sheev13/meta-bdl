@@ -1,0 +1,12 @@
+{
+    "prior": "sawtooth_48_48",
+    "model_name": "hmc",
+    "hidden_dims": [
+        48,
+        48
+    ],
+    "num_test_sets": 16,
+    "function_type": "sawtooth",
+    "use_gpu": true,
+    "use_shared_test_sets": true
+}

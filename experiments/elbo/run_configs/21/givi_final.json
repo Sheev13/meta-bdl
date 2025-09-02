@@ -6,8 +6,8 @@
         20,
         20
     ],
-    "learning_rate": 0.005,
-    "final_learning_rate": 5e-05,
+    "learning_rate": 0.01,
+    "final_learning_rate": 0.0005,
     "num_sigma_ys": 40,
     "min_sigma_y": 0.01,
     "max_sigma_y": 10.0,
@@ -15,5 +15,6 @@
     "seed": 21,
     "scale_prior": true,
     "nonlinearity": "relu",
-    "use_gpu": false
+    "use_gpu": false,
+    "use_shared_dataset": true
 }

@@ -6,7 +6,7 @@
         20,
         20
     ],
-    "learning_rate": 0.005,
+    "learning_rate": 0.0005,
     "final_learning_rate": 5e-05,
     "num_sigma_ys": 40,
     "min_sigma_y": 0.01,

@@ -5,10 +5,8 @@
         48,
         48
     ],
-    "nonlinearity": "relu",
     "num_test_sets": 16,
     "function_type": "sawtooth",
-    "burn": 250,
-    "thin": 100,
-    "use_gpu": true
+    "use_gpu": true,
+    "use_shared_test_sets": true
 }
