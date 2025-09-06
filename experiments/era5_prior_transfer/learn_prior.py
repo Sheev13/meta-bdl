@@ -9,7 +9,7 @@ import json
 
 import models
 from utils.training import train_meta_model
-from utils.data_utils import obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please
+from utils.data_utils import obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please, vis_era5_preds
 from base_networks.base_architectures import Sin, SharpTanh
 
 
@@ -34,7 +34,7 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
     return md
 
 def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu'):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.1, train=True, sigma_y_upper_bound=0.3)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.1, train=True)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -67,19 +67,19 @@ def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu'):
     
     return bdnp
     
-def main(num_datasets=100_000,
-         function_type='sawtooth',
-         architecture=[48, 48],
+def main(codename=None,
+         architecture=[64, 64, 64],
          nonlinearity='relu',
-         training_steps=20_000,
+         training_steps=30_000,
          learning_rate=5e-3,
          final_learning_rate=5e-5,
-         loss_function='pp-avi',
          use_gpu=True,
+         use_pretrained=False,
         ):
     args_dict = locals()
 
-    codename = function_type.lower() + "".join([f'_{i}' for i in architecture]) # e.g. 'sawtooth_48_48'
+    if codename is None:
+        raise ValueError("User needs to specify a codename for this prior learning run.")
 
     if use_gpu and torch.cuda.is_available():
         device = torch.device('cuda')
@@ -92,74 +92,76 @@ def main(num_datasets=100_000,
 
     PATH = str(Path(__file__).resolve().parent)
 
-    Path(PATH + "/saved_models").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/training_configs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/{codename}/pngs").mkdir(parents=True, exist_ok=True)
+    if use_pretrained:
+        bdnp = torch.load(PATH + f'/saved_models/{codename}')
+        md = torch.load("dataset.pt", map_location="cpu")
 
-    with open(PATH + f"/training_configs/{codename}-config.json", 'w') as f:
-        json.dump(args_dict, f, indent=4)
-
-    md = build_meta_dataset(
-        num_datasets=num_datasets,
-        n_range=[40, 100],
-        function_type=function_type
-    )
-
-    bdnp = init_bdnp(
-        architecture=architecture,
-        nonlinearity=nonlinearity,
-    )
-    bdnp.trainable_prior(True)
-
-    training_metrics = train_meta_model(
-        bdnp,
-        md,
-        training_steps=training_steps,
-        batch_size=5,
-        learning_rate=learning_rate,
-        final_learning_rate=final_learning_rate,
-        num_samples=32,
-        loss_function=loss_function,
-        ctxt_proportion_range=(0.1, 0.9),
-        device_agnostic=True,
-    )
-
-    torch.save(bdnp, PATH + f'/saved_models/{codename}')
-
-    fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
-    omitted_steps = 0
-    for i, (key, value) in enumerate(training_metrics.items()):
-        axes[i].plot(value[omitted_steps:])
-        axes[i].set_xlabel(key)
-        axes[i].grid()
-        if key in ['elbo', 'loss']:
-            axes[i].set_ylim([-4000, 500])
-        elif key in ['ell', 'ppl']:
-            axes[i].set_ylim([-2000, 300])
-        elif key == 'kl':
-            axes[i].set_ylim([0, 2000])
-
-    plt.savefig(PATH + f"/figs/{codename}/pdfs/training.pdf", bbox_inches="tight")
-    plt.savefig(PATH + f"/figs/{codename}/pngs/training.png", bbox_inches="tight")
-    plt.close()
-
-    
-    xs = torch.linspace(-4.0, 4.0, 250).unsqueeze(-1)
-    samps = 100
-
-    if function_type == 'sawtooth':
-        x_lim = [-2.0, 2.0]
-        y_lim = [-2.0, 2.0]
     else:
-        x_lim = [-4.0, 4.0]
-        y_lim = [-4.0, 4.0]
 
-    # prior samples:
-    with torch.no_grad():
-        prior_samps = bdnp(xs, None, None, num_samples=samps)[0]
+        Path(PATH + "/saved_models").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/training_configs").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs/{codename}/pngs").mkdir(parents=True, exist_ok=True)
+
+        with open(PATH + f"/training_configs/{codename}-config.json", 'w') as f:
+            json.dump(args_dict, f, indent=4)
+
+        md = torch.load("dataset.pt", map_location="cpu")
+
+        bdnp = init_bdnp(
+            architecture=architecture,
+            nonlinearity=nonlinearity,
+        )
+        bdnp.trainable_prior(True)
+
+        training_metrics = train_meta_model(
+            bdnp,
+            md,
+            training_steps=training_steps,
+            batch_size=5,
+            learning_rate=learning_rate,
+            final_learning_rate=final_learning_rate,
+            num_samples=16,
+            loss_function='pp-avi',
+            ctxt_proportion_range=(0.1, 0.9),
+            task_subsample_fraction=None,
+            device_agnostic=True,
+            dataset_on_cpu=True,
+        )
+
+        torch.save(bdnp, PATH + f'/saved_models/{codename}')
+
+        fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
+        omitted_steps = 0
+        for i, (key, value) in enumerate(training_metrics.items()):
+            axes[i].plot(value[omitted_steps:])
+            axes[i].set_xlabel(key)
+            axes[i].grid()
+            if key in ['elbo', 'loss']:
+                axes[i].set_ylim([-4000, 500])
+            elif key in ['ell', 'ppl']:
+                axes[i].set_ylim([-2000, 300])
+            elif key == 'kl':
+                axes[i].set_ylim([0, 2000])
+
+        plt.savefig(PATH + f"/figs/{codename}/pdfs/training.pdf", bbox_inches="tight")
+        plt.savefig(PATH + f"/figs/{codename}/pngs/training.png", bbox_inches="tight")
+        plt.close()
+
+    for _ in range(5):
+        X, _ = md[0]
+        X = X.to(device)
+        with torch.no_grad():
+            pred_y = bdnp(X, Xc=None, Yc=None, num_samples=1, batch_size=None)[0]
+
+        
+
+    ################## Completed up to here ###################
+    # plot learned prior predictive mean + std + samples using era5 plotting function
+    # re-do era5 plotting function to just return necessary tensors rather than plt.show() inside function
+    # also add same code here but for bnn prior predictive equivalents before training.
 
     plt.plot(xs.unsqueeze(0).repeat((samps, 1, 1)).squeeze(-1).T.cpu(), prior_samps.squeeze(-1).T.cpu(), linewidth=0.5, color='C0', alpha=0.5)
     plt.grid()

@@ -88,6 +88,8 @@ def main(
     Path(PATH + f"/figs/{codename}/pngs/prior_samples").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/{codename}/pdfs/posterior_samples").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/{codename}/pngs/posterior_samples").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/{codename}/pdfs/super_posterior_samples").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/{codename}/pngs/super_posterior_samples").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/training-configs").mkdir(parents=True, exist_ok=True)
 
     if nonlinearity.lower() == 'relu':
@@ -199,9 +201,13 @@ def main(
     for p in proportions:
         Path(PATH + f"/figs/{codename}/pdfs/posterior_samples/ctxt-{p}").mkdir(parents=True, exist_ok=True)
         Path(PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs/{codename}/pdfs/super_posterior_samples/ctxt-{p}").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/figs/{codename}/pngs/super_posterior_samples/ctxt-{p}").mkdir(parents=True, exist_ok=True)
         for j in range(5):
             Path(PATH + f"/figs/{codename}/pdfs/posterior_samples/ctxt-{p}/image-{j}").mkdir(parents=True, exist_ok=True)
             Path(PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}").mkdir(parents=True, exist_ok=True)
+            Path(PATH + f"/figs/{codename}/pdfs/super_posterior_samples/ctxt-{p}/image-{j}").mkdir(parents=True, exist_ok=True)
+            Path(PATH + f"/figs/{codename}/pngs/super_posterior_samples/ctxt-{p}/image-{j}").mkdir(parents=True, exist_ok=True)
             _, Y = test_md.pop()
             Y = Y.to(device)
             img = dataset_to_img(Y).to(device)
@@ -217,18 +223,28 @@ def main(
 
             with torch.no_grad():
                 posterior_samps = bdnp(X_t, X_c, Y_c, num_samples=samps)[0] # shape (samps, 784, 1)
+                super_posterior_samps = bdnp(fine_X_t, X_c, Y_c, num_samples=samps)[0] # shape (samps, 10_000, 1)
 
             for i in range(samps):
                 pred_img = posterior_samps[i,:,:].reshape((28, 28, 1))
+                super_pred_img = super_posterior_samps[i,:,:].reshape((100, 100, 1))
                 save_image(pred_img, PATH + f"/figs/{codename}/pdfs/posterior_samples/ctxt-{p}/image-{j}/sample-{i}.pdf")
                 save_image(pred_img, PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}/sample-{i}.png")
+                save_image(super_pred_img, PATH + f"/figs/{codename}/pdfs/super_posterior_samples/ctxt-{p}/image-{j}/sample-{i}.pdf")
+                save_image(super_pred_img, PATH + f"/figs/{codename}/pngs/super_posterior_samples/ctxt-{p}/image-{j}/sample-{i}.png")
 
             pp = posterior_samps.mean(0).reshape((28, 28, 1)) # posterior predictive, i.e. posterior predictive/BMA pixelwise class probabilities
+            super_pp = super_posterior_samps.mean(0).reshape((100, 100, 1))
             save_image(pp, PATH + f"/figs/{codename}/pdfs/posterior_samples/ctxt-{p}/image-{j}/pred_mean.pdf")
             save_image(pp, PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}/pred_mean.png")
+            save_image(super_pp, PATH + f"/figs/{codename}/pdfs/super_posterior_samples/ctxt-{p}/image-{j}/pred_mean.pdf")
+            save_image(super_pp, PATH + f"/figs/{codename}/pngs/super_posterior_samples/ctxt-{p}/image-{j}/pred_mean.png")
             std = (pp * (1 - pp)).sqrt() # variance for Bernoulli distribution with probability p is p(1-p)
+            super_std = (super_pp * (1 - super_pp)).sqrt()
             save_image(std, PATH + f"/figs/{codename}/pdfs/posterior_samples/ctxt-{p}/image-{j}/pred_std.pdf", cmap='inferno')
             save_image(std, PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}/pred_std.png", cmap='inferno')
+            save_image(super_std, PATH + f"/figs/{codename}/pdfs/super_posterior_samples/ctxt-{p}/image-{j}/pred_std.pdf", cmap='inferno')
+            save_image(super_std, PATH + f"/figs/{codename}/pngs/super_posterior_samples/ctxt-{p}/image-{j}/pred_std.png", cmap='inferno')
 
 
 

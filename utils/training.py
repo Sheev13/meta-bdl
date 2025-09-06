@@ -32,6 +32,7 @@ def train_meta_model(
     ctxt_anneal_start_proportion: float = 1.0,
     ctxt_anneal_end_step: Optional[int] = None,
     ctxt_anneal_end_proportion: float = 0.5,
+    dataset_on_cpu: bool = False,
 ) -> Dict:
     
     if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'po-avi', 'mpl', 'pp-avi']:
@@ -52,16 +53,20 @@ def train_meta_model(
             torch.set_default_device(device)
             torch.set_default_dtype(torch.float32)
             model.to(device, dtype=torch.float32)
-            print("Moving dataset to device...")
-            md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
-            print("Done.")
+            if not dataset_on_cpu:
+                print("Moving dataset to device...")
+                md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
+                print("Done.")
         else:
             device = torch.device('cpu')
     
     meta_dataset = MetaDataset(md)
 
     # move dataset into torch dataloader
-    generator = torch.Generator(device=device)
+    if dataset_on_cpu:
+        generator = torch.Generator(device='cpu')
+    else:
+        generator = torch.Generator(device=device)
     sampler = torch.utils.data.RandomSampler(meta_dataset, generator=generator)
     dataloader = torch.utils.data.DataLoader(meta_dataset, sampler=sampler)
     dataset_iterator = iter(dataloader)
@@ -133,7 +138,7 @@ def train_meta_model(
                 dataset_iterator = iter(dataloader)
                 (X, y) = next(dataset_iterator)
 
-            if X.device != device:
+            if X.device != device: # e.g. this happens when dataset_on_cpu is True
                 X = X.to(device)
                 y = y.to(device)
 

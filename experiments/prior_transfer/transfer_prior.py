@@ -274,7 +274,6 @@ def main(prior=None,
             with torch.no_grad():
                 pred_samps = model.bma_forward(xs, num_samples=100)
                 pred_yt = model.bma_forward(Xt, num_samples=num_samples)
-    
 
 
         ## handle pre-trained bdnp ##

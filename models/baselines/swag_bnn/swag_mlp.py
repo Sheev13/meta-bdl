@@ -111,7 +111,7 @@ class SWAG_BNN(nn.Module, ABC):
     def Sigma(self):
         diag_term = 0.5 * self.Sigma_diag.diag_embed()
         lr_sf = torch.ones((self.num_weights, self.num_weights)) - (0.5 * torch.eye(self.num_weights))
-        low_rank_term = lr_sf * self.D @ self.D.T / (self.K - 1)
+        low_rank_term = lr_sf * (self.D @ self.D.T) / (self.K - 1)
         return diag_term + low_rank_term
 
 
@@ -156,7 +156,7 @@ class SWAG_BNN(nn.Module, ABC):
         X = X.unsqueeze(0).repeat((num_samples, 1, 1))
         return self(X, W)
 
-    
+
     def log_likelihood(self, X: torch.Tensor, Y: torch.Tensor, W: torch.Tensor):
         pred_Y = self(X, W)
         return self.likelihood.log_prob(pred_Y, Y).mean(0).sum() # average over samples, but in training num_samples = 1

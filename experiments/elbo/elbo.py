@@ -173,7 +173,8 @@ def main(codename=None,
                            'learning_rate': learning_rate,
                            'final_learning_rate': final_learning_rate,
                            'num_samples': 8,
-                           'loss_function': 'avi',
+                           'loss_function': 'pp-avi',
+                           'ctxt_proportion_range': [0.7, 0.9],
                            'device_agnostic': True}
     else:
         training_alg = train_variational_model

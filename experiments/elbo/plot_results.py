@@ -12,19 +12,26 @@ from typing import List, Optional, Tuple
 from collections import defaultdict
 
 def get_colours():
-    colours = {'givi': 'grey', 'mc': 'black'}
+    colours = {'mc': 'black'}
 
-    vi_cmap = plt.cm.cool
-    vi_colours = [vi_cmap(i) for i in np.linspace(0.0, 0.6, 4)]
-    vi_methods = ['mfvi', 'ucvi', 'lcvi', 'fcvi']
-    for i in range(4):
-        colours[vi_methods[i]] = vi_colours[i]
+    # vi_cmap = plt.cm.cool
+    # vi_colours = [vi_cmap(i) for i in np.linspace(0.0, 0.6, 4)]
+    # vi_methods = ['mfvi', 'ucvi', 'lcvi', 'fcvi']
+    # for i in range(4):
+    #     colours[vi_methods[i]] = vi_colours[i]
 
-    bdnp_cmap = plt.cm.copper
-    bdnp_colours = [bdnp_cmap(i) for i in [0.5, 0.7]]
-    bdnp_methods = ['bdnp', 'meta_bdnp']
-    for i in range(2):
-        colours[bdnp_methods[i]] = bdnp_colours[i]
+    # bdnp_cmap = plt.cm.copper
+    # bdnp_colours = [bdnp_cmap(i) for i in [0.5, 0.7]]
+    # bdnp_methods = ['bdnp', 'meta_bdnp']
+    # for i in range(2):
+    #     colours[bdnp_methods[i]] = bdnp_colours[i]
+
+    cmap = plt.cm.RdYlGn
+    methods = ['mfvi', 'ucvi', 'lcvi', 'fcvi', 'spare', 'givi', 'meta_bdnp', 'bdnp']
+    cmap_colours = [cmap(i) for i in np.linspace(0.0, 1.0, len(methods))]
+    for i in range(len(methods)):
+        if methods[i] != 'spare':
+            colours[methods[i]] = cmap_colours[i]
     
     return colours
 
@@ -69,7 +76,7 @@ def main():
             lab = 'LML'
         if model.lower() == 'meta_bdnp':
             lab = 'BDNP (meta)'
-        axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=10)
+        axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=20)
         axes.plot(x, y_means.tolist(), color=c)
         axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
         axes.set_xlabel(r'$\sigma_y$')
@@ -113,7 +120,7 @@ def main():
                 lab = 'LML'
             if model.lower() == 'meta_bdnp':
                 lab = 'BDNP (meta)'
-            axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=10)
+            axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=20)
             axes.plot(x, y_means.tolist(), color=c)
             axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
             axes.set_xlabel(r'$\sigma_y$')

@@ -4,6 +4,10 @@ import torch
 from torch.utils.data import Dataset
 from utils.bnn_prior import GaussianBNNPrior
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import numpy as np
 
 class MetaDataset(Dataset):
     def __init__(self, datasets: List[Any]):
@@ -201,5 +205,40 @@ def test_grid(image_shape: torch.Size):
     x2 = xm2.flatten()
 
     return torch.stack((x1, x2)).transpose(-1, -2)
+
+
+
+
+
+###################### Era5 visualisation utils ########################
+
+
+def vis_era5_preds(lons, lats, preds):
+    """
+    Plot precipitation heatmap over Europe.
+    
+    lons: 1D array of longitudes
+    lats: 1D array of latitudes
+    preds: 1D array of predictions aligned with meshgrid(lon, lat)
+    """
+    # Reshape into grid (lat, lon)
+    Lon, Lat = np.meshgrid(lons, lats)
+    Z = preds.reshape(len(lats), len(lons))
+
+    fig = plt.figure(figsize=(10, 8))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+
+    # Add geographic context
+    ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+    ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+    ax.set_extent([min(lons), max(lons), min(lats), max(lats)])  
+
+    # Plot rainfall
+    im = ax.pcolormesh(lons, lats, Z, cmap="Blues", shading="auto")
+
+    # Add colorbar
+    cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
+
+    plt.show()
 
     

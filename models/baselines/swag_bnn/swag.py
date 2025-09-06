@@ -80,6 +80,8 @@ def run_SWAG(model: SWAG_BNN,
 
         if i % c == 0:
             W_curr = W.detach().clone()
+            if W_curr.isnan().any():
+                W_curr = torch.nan_to_num(W_curr, nan=0.0, posinf=1e3, neginf=-1e3)
             n = (i / c) + 1 # + 1 since we already include the pretrained weights.
             W_bar = (n * W_bar + W_curr) / (n+1)
             W_2_bar = (n * W_2_bar + W_curr.pow(2)) / (n+1)
@@ -98,6 +100,7 @@ def run_SWAG(model: SWAG_BNN,
 
     model.W_swa.data = W_bar
     model.Sigma_diag.data = W_2_bar - W_bar.pow(2)
+    model.Sigma_diag.data += 1e-5 # jitter
     model.D.data = torch.stack(D_list).T # shape (num_weights, K)
 
     return tracker

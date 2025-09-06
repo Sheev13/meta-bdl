@@ -3,7 +3,7 @@
 #SBATCH --job-name=elbo_experiment_job_array
 #SBATCH --output=experiments/elbo/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/elbo/slurm_logs/%A_%a.err
-#SBATCH --array=5,6,13,14,21,22,29,30
+#SBATCH --array=6,14,22,30
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal

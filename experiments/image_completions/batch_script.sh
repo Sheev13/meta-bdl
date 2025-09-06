@@ -22,9 +22,10 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/image_completions/image_completions.py \
-    --codename haiti \
-    --architecture 96 96 96 96 \
+    --codename india \
+    --architecture 48 48 48 \
     --training_steps 30_000 \
     --num_samples 16 \
-    --ctxt_proportion_range 0.01 0.4 \
+    --ctxt_proportion_range 0.01 0.9 \
+    --use_pretrained \
     --use_gpu
