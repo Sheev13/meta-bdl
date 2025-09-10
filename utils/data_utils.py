@@ -241,4 +241,42 @@ def vis_era5_preds(lons, lats, preds):
 
     plt.show()
 
+
+def scrambled_ctxt_trgt_to_grid(xs: torch.Tensor, ys: torch.Tensor):
+    assert xs.shape[1] == 2 # shape (n, 2)
+    assert ys.shape[2] == 1 # shape (samples, n, 1)
+    x1, x2 = xs[:,0].cpu().numpy(), xs[:,1].cpu().numpy()
+    Ys = ys[:,:,0].cpu().numpy()
+    x1_uni, x2_uni = np.unique(x1), np.unique(x2)
+    Z = np.empty((Ys.shape[0], len(x2_uni), len(x1_uni)))
+    x1_to_idx = {val: i for i, val in enumerate(x1_uni)}
+    x2_to_idx = {val: i for i, val in enumerate(x2_uni)}
+
+    for i, x1i_x2i in enumerate(zip(x1, x2)):
+        x1i, x2i = x1i_x2i
+        ix1 = x1_to_idx[x1i]
+        ix2 = x2_to_idx[x2i]
+        Z[:, ix2, ix1] = Ys[:, i]
+
+    xx1, xx2 = np.meshgrid(x1_uni, x2_uni)
+
+    return xx1, xx2, Z
+
+
+def scrambled_sprs_to_masked_grid(xs: torch.Tensor, ys: torch.Tensor, xx1: np.ndarray, xx2: np.ndarray):
+    # xs and ys correspond to a context set, i.e. m << n
+    # xx1 and xx2 come from scrambled_ctxt_trgt_to_grid applied to the full set of points, i.e. all n points.
+    assert xs.shape[1] == 2 # shape (m, 2)
+    assert ys.shape[1] == 1 # shape (m, 1)
+    x1, x2 = xs[:,0].cpu().numpy(), xs[:,1].cpu().numpy()
+    Ys = ys[:,0].cpu().numpy()
+    x1_uni, x2_uni = np.unique(xx1[0,:]), np.unique(xx2[:,0])
+    ix1, ix2 = np.searchsorted(x1_uni, x1), np.searchsorted(x2_uni, x2)
+    Z = np.full(xx1.shape, np.nan)
+    Z[ix2, ix1] = Ys.ravel()
+    Z_masked = np.ma.masked_invalid(Z)
+
+    return Z_masked
+
+
     

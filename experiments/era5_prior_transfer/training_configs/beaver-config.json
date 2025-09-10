@@ -1,0 +1,13 @@
+{
+    "codename": "beaver",
+    "architecture": [
+        48,
+        48
+    ],
+    "nonlinearity": "relu",
+    "training_steps": 30000,
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "use_gpu": true,
+    "use_pretrained": false
+}

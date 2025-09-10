@@ -18,7 +18,7 @@ def main():
     c = cdsapi.Client()
 
     # Define area (Central Europe) and years
-    area = [55, 10, 45, 20]  # N, W, S, E
+    area = [50, 5, 45, 12]  # N, W, S, E
     years = [str(y) for y in range(2010, 2020)]  # 10 years
 
     Path(PATH + "/data").mkdir(parents=True, exist_ok=True)
@@ -63,7 +63,7 @@ def main():
                     "day": [f"{d:02d}" for d in range(1, 32)],
                     "time": ["00:00", "12:00"],
                     "area": area,
-                    "grid": [0.2, 0.2],
+                    "grid": [0.1, 0.1],
                     "format": "netcdf",
                 },
                 target_file,
@@ -114,7 +114,7 @@ def main():
         # Select only 0:00 and 12:00 hours
         time_sel = time_coord[time_coord.dt.hour.isin([0, 12])]
 
-        for t in tqdm(range(len(time_sel)), desc=f"Processing {f}"):
+        for t in tqdm(range(len(time_sel)), desc=f"Processing {f}", file=sys.stdout):
             temp = ds["t2m"].sel({time_dim: time_sel[t]}).values
             precip = ds["tp"].sel({time_dim: time_sel[t]}).values
 
@@ -133,13 +133,14 @@ def main():
     # ----------------------
     # 3. Normalize inputs
     # ----------------------
-    X_concat = np.vstack(all_X)  # [N_total, 3]
+    # double check normalisation is happening correctly here, e.g. what shape of X_concat is.
+    X_concat = np.vstack(all_X)
     X_mean = X_concat.mean(axis=0)
     X_std = X_concat.std(axis=0)
 
-    Y_concat = np.vstack(all_y)
-    y_mean = Y_concat.mean(axis=0)
-    y_std = Y_concat.std(axis=0)
+    Y_concat = np.vstack(all_y).flatten()
+    y_mean = Y_concat.mean()
+    y_std = Y_concat.std()
 
     X_m, X_s = torch.tensor(X_mean, dtype=torch.float64), torch.tensor(X_std, dtype=torch.float64)
     torch.save([X_m, X_s], PATH + "/data/X_norm_consts.pt")

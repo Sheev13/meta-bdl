@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from typing import List, Optional
+from itertools import accumulate
 from . import likelihoods
 from .priors import FCNetworkwisePrior
 from .amortised_layers import AmortisedLinearLayer, AmortisedAttentionBlock
@@ -80,6 +81,38 @@ class BDNP(nn.Module):
         else:
             for l in self.layers:
                 l.prior.trainable(flag, just_mean=just_mean)
+
+    def set_prior_trainability(self, proportion: float, from_front: bool = True):
+        assert proportion >= 0.0
+        assert proportion <= 1.0
+        if self.prior_type not in [0, 1]:
+            raise NotImplementedError(f"User wants to set partial prior trainability with prior type {self.prior_type}. Only implemented for prior types 0 and 1.")
+        dims = self.dims
+        weights_per_layer = [(dims[i]+1) * dims[i+1] for i in range(len(dims) - 1)]
+        cumulative_weights_per_layer = [0] + list(accumulate(weights_per_layer))
+        num_weights = cumulative_weights_per_layer[-1]
+
+        if from_front:
+            stop_weight = int(proportion * num_weights)
+            for i, layer in enumerate(self.layers):
+                if stop_weight >= cumulative_weights_per_layer[i+1]:
+                    layer.prior.trainable(True)
+                    if stop_weight == cumulative_weights_per_layer[i+1]:
+                        break
+                elif stop_weight > cumulative_weights_per_layer[i]:
+                    layer.prior.partially_trainable(stop_weight - cumulative_weights_per_layer[i])
+                    break
+        else:
+            stop_weight = num_weights - int(proportion * num_weights)
+            for i, layer in enumerate(reversed(self.layers)):
+                if stop_weight <= cumulative_weights_per_layer[i-1]:
+                    layer.prior.trainable(True)
+                    if stop_weight == cumulative_weights_per_layer[i-1]:
+                        break
+                elif stop_weight < cumulative_weights_per_layer[i]:
+                    layer.prior.partially_trainable(cumulative_weights_per_layer[i] - stop_weight)
+                    break
+        
 
     def forward(self, Xt, Xc=None, Yc=None, return_kl=False, num_samples=1, update_prev=False, save_stuff=False, batch_size=None):
         # Xt shape (Nt, x_dim), Xc shape (Nc, x_dim)
@@ -164,7 +197,7 @@ class BDNP(nn.Module):
             else:
                 metrics["ell"] = loss.detach().item()
 
-        if self.x_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
+        if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
 

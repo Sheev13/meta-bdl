@@ -6,48 +6,26 @@ root_dir = Path(__file__).resolve().parents[2]  # two levels up
 sys.path.insert(0, str(root_dir))
 import argparse
 import json
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 import models
 from models import baselines
 from utils.training import train_variational_model
-from utils.data_utils import obtain_me_a_nice_sawtooth_dataset_please, obtain_me_a_nice_heaviside_dataset_please, obtain_me_a_nice_gp_dataset_please, ctxt_trgt_split
+from utils.data_utils import scrambled_ctxt_trgt_to_grid, scrambled_sprs_to_masked_grid
 from utils.mcmc_utils import autocorrelation_array
 from base_networks.base_architectures import Sin, SharpTanh
 
 
-def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sawtooth', x_range=[-4.0, 4.0]):
-    md = []
-    assert function_type.lower() in ['sawtooth', 'gp', 'heaviside']
-
-    if function_type.lower() == 'sawtooth':
-        dataset_func = obtain_me_a_nice_sawtooth_dataset_please
-        data_hypers = {'p': 0.75, 'm': 1.33, 'random_linear': True, 'x_range': [-2.0, 2.0]}
-    elif function_type.lower() == 'gp':
-        dataset_func = obtain_me_a_nice_gp_dataset_please
-        data_hypers = {'l': 0.5, 'kernel': 'se', 'x_range': x_range}
-    elif function_type.lower() == 'heaviside':
-        dataset_func = obtain_me_a_nice_heaviside_dataset_please
-        data_hypers = {'x_range': x_range, 'l': 1}
-
-    for _ in range(num_datasets):
-        X, y = dataset_func(n_range=n_range, **data_hypers)
-        md.append((X, y))
-    
-    return md
-
-
 def main(prior=None,
          model_name=None,
-         hidden_dims=[48, 48],
-         num_test_sets=16,
-         function_type='sawtooth',
+         hidden_dims=[64, 64, 64],
          use_gpu=False,
-         use_shared_test_sets=False,
          ):
     
     args_dict = locals()
 
-    print("model: ", model_name, " dataset: ", function_type, " prior type: ", prior)
+    print("model: ", model_name, " prior type: ", prior)
     
     if use_gpu and torch.cuda.is_available():
         device = torch.device('cuda')
@@ -61,16 +39,14 @@ def main(prior=None,
     PATH = str(Path(__file__).resolve().parent)
 
     Path(PATH + "/training_configs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}/{model_name}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}/{model_name}/{prior}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}/{model_name}/{prior}/figs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/{model_name}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/{model_name}/{prior}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/{model_name}/{prior}/figs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/{model_name}/{prior}/figs/pngs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/{model_name}/{prior}/figs/pdfs").mkdir(parents=True, exist_ok=True)
 
     with open(PATH + f"/training_configs/{model_name}-{prior}-config.json", 'w') as f:
         json.dump(args_dict, f, indent=4)
-
 
     if prior is None:
         raise ValueError("User failed to specify the prior to use. Total fool.")
@@ -81,39 +57,16 @@ def main(prior=None,
             raise ValueError("User failed to provide prior name corresponding to valid pretrained BDNP.")
 
     assert model_name.lower() in ['mfvi', 'givi', 'hmc', 'lmc', 'bdnp', 'swag']
-
-    if function_type == 'sawtooth':
-        nonlinearity = 'relu'
-    elif function_type == 'heaviside':
-        nonlinearity = 'tanh'
-    elif function_type == 'gp':
-        nonlinearity = 'silu'
-
-    if nonlinearity.lower() == 'relu':
-        nl = torch.nn.ReLU()
-    elif nonlinearity.lower() == 'sin':
-        nl = Sin()
-    elif nonlinearity.lower() == 'tanh':
-        nl = torch.nn.Tanh()
-    elif nonlinearity.lower() == 'sigmoid':
-        nl = torch.nn.Sigmoid()
-    elif 'leaky' in nonlinearity.lower():
-        nl = torch.nn.LeakyReLU()
-    elif nonlinearity.lower() == 'swish' or nonlinearity.lower() == 'silu':
-        nl = torch.nn.SiLU()
-    elif nonlinearity.lower() == 'sharptanh':
-        nl = SharpTanh()
-    else:
-        raise NotImplementedError("Conversion to torch.nn module not yet implemented for provided nonlinearity string.")
     
     # if mfvi, givi, hmc, or lmc we train on each task and then evaluate, regardless of prior
     # if bdnp with fancy prior, do no training but just evaluate on tasks
     # if bdnp with bnn prior, treat it the same as other bnns
 
     lik = models.GaussianLikelihood(1, sigma_y=0.05)
+    nl = torch.nn.ReLU()
 
     if 'bdnp' in model_name.lower():
-        model_kwargs = {'x_dim': 1,
+        model_kwargs = {'x_dim': 3,
                         'y_dim': 1,
                         'likelihood': lik,
                         'hidden_dims': hidden_dims,
@@ -124,14 +77,14 @@ def main(prior=None,
                         'scale_prior': True,
                         'nonlinearity': nl}
     else:
-        model_kwargs = {'x_dim': 1,
+        model_kwargs = {'x_dim': 3,
                         'y_dim': 1,
                         'likelihood': lik,
                         'hidden_dims': hidden_dims,
                         'scale_prior': True,
                         'nonlinearity': nl}
         if model_name.lower() == 'givi':
-            model_kwargs['num_inducing'] = 10
+            model_kwargs['num_inducing'] = 128
         elif model_name.lower() == 'swag':
             model_kwargs['K'] = 64
     
@@ -158,24 +111,19 @@ def main(prior=None,
     if use_gpu:
         torch.cuda.manual_seed(69)
 
-    if use_shared_test_sets:
-        test_sets = torch.load(PATH + f"/shared_test_sets/{function_type}.pt", weights_only=False)
-        assert len(test_sets) >= num_test_sets
-    else:
-        test_sets = build_meta_dataset(num_datasets=num_test_sets, n_range=[50, 51], function_type=function_type)
-    xs = torch.linspace(-4.0, 4.0, 200).unsqueeze(-1)
+    test_sets = torch.load(PATH + f"/data/test_sets.pt", weights_only=False)
+    num_test_sets = len(test_sets)
+
     results = {'ppd': torch.zeros((num_test_sets,)), 'mae': torch.zeros((num_test_sets,))}
     for j, test_set in enumerate(test_sets):
-        if use_shared_test_sets:
-            Xc_raw, yc_raw, Xt_raw, yt_raw = test_set
-            Xc = Xc_raw.to(device=device, dtype=torch.float64)
-            yc = yc_raw.to(device=device, dtype=torch.float64)
-            Xt = Xt_raw.to(device=device, dtype=torch.float64)
-            yt = yt_raw.to(device=device, dtype=torch.float64)
-        else:
-            Xc, yc, Xt, yt = ctxt_trgt_split(*test_set, ctxt_proportion_range=[0.05, 0.5])
-        Path(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}").mkdir(parents=True, exist_ok=True)
+        Xc_raw, yc_raw, Xt_raw, yt_raw = test_set
+        Xc = Xc_raw.to(device=device, dtype=torch.float64)
+        yc = yc_raw.to(device=device, dtype=torch.float64)
+        Xt = Xt_raw.to(device=device, dtype=torch.float64)
+        yt = yt_raw.to(device=device, dtype=torch.float64)
+        xs = torch.cat((Xc, Xt), dim=0)
+        Path(PATH + f"/{model_name}/{prior}/figs/pngs/{j}").mkdir(parents=True, exist_ok=True)
+        Path(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}").mkdir(parents=True, exist_ok=True)
 
         # initialise model if not pretrained BDNP
         if not ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')):
@@ -201,7 +149,7 @@ def main(prior=None,
                 retain_graph = True
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=10_000,
+                                                       training_steps=15_000,
                                                        learning_rate=1e-2,
                                                        final_learning_rate=5e-4,
                                                        num_samples=8,
@@ -252,14 +200,14 @@ def main(prior=None,
                                                                algorithm='hmc', # LMC code is buggy, so we do HMC with 1 leapfrog step for LMC
                                                                steps=steps,
                                                                step_size=step_size,
-                                                               minibatch_size=None, # full-batch
-                                                               metropolis_adjusted=True,
+                                                               minibatch_size=500, # SG (HMC/LD)
+                                                               metropolis_adjusted=False,
                                                                leapfrog_steps=leapfrog_steps)
             
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
 
-            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
+            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=100)            
             
             with torch.no_grad():
                 pred_yt = model.batch_forward(Xt, samples)
@@ -268,8 +216,8 @@ def main(prior=None,
 
 
         elif model_name.lower() == 'swag':
-            pretraining_metrics = baselines.pretrain(model, Xc, yc, training_steps=5_000, learning_rate=5e-3)
-            training_metrics = baselines.run_SWAG(model, Xc, yc, learning_rate=1e-2, swa_steps=100, c=25)
+            pretraining_metrics = baselines.pretrain(model, Xc, yc, training_steps=10_000, learning_rate=5e-3)
+            training_metrics = baselines.run_SWAG(model, Xc, yc, learning_rate=1e-2, swa_steps=200, c=25)
             num_samples=1000
             with torch.no_grad():
                 pred_samps = model.bma_forward(xs, num_samples=100)
@@ -300,8 +248,8 @@ def main(prior=None,
                 elif key == 'kl':
                     axes[i].set_ylim([0, 2000])
 
-            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
-            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
             plt.close()
 
         if model_name.lower() == 'swag':
@@ -312,45 +260,113 @@ def main(prior=None,
                 axes[i].set_xlabel(key)
                 axes[i].grid()
 
-            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/pretraining.pdf", bbox_inches="tight")
-            plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/pretraining.png", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pretraining.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pretraining.png", bbox_inches="tight")
             plt.close()
 
 
 
-        ###### evaluation code common to all models.
-        plt.plot(xs.unsqueeze(0).repeat((pred_samps.shape[0], 1, 1)).squeeze(-1).T.cpu(), pred_samps.squeeze(-1).T.cpu(), linewidth=0.5, color='C0', alpha=0.5)
-        plt.scatter(Xc.cpu(), yc.cpu(), color='C1', zorder=10000)
-        plt.grid()
-        lim = [-4.0, 4.0]
-        if function_type.lower() == 'sawtooth':
-            lim = [-2.0, 2.0]
-        plt.xlim(lim)
-        plt.ylim(lim)
-        plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/predictive.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/predictive.png", bbox_inches="tight")
-        plt.close() 
+        ###### evaluation code common to all models. #######
 
         # log per-datapoint average posterior predictive density
         results['ppd'][j] = (model.likelihood.log_prob(pred_yt, yt).sum(-1).logsumexp((0, 1)) - torch.tensor(num_samples * yt.shape[0]).log()).item()
+
+        # normalise data for MAE and plotting:
+        X_means, X_stds = torch.load(PATH + "/data/X_norm_consts.pt", weights_only=False)
+        y_mean, y_std = torch.load(PATH + "/data/y_norm_consts.pt", weights_only=False)
+        pred_yt = pred_yt * y_std + y_mean
+        pred_samps = pred_samps * y_std + y_mean
+        yt = yt * y_std + y_mean
+        yc = yc * y_std + y_mean
+        Xc = Xc * X_stds + X_means
+        xs = xs * X_stds + X_means
+
         # per-datapoint average mean-absolute error between true targets and predictive mean.
         results['mae'][j] = ((pred_yt.mean(0) - yt).abs().mean()).item()
 
 
+        # plot posterior predictive samples/means/stds etc
+        xs = xs[:,:2]
+        ys = pred_samps
+        xx1, xx2, Y = scrambled_ctxt_trgt_to_grid(xs, ys)
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.set_extent([5, 12, 45, 50])  
+        im = ax.pcolormesh(xx1, xx2, Y.mean(0), cmap="Blues", shading="auto")
+        cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_mean.pdf", bbox_inches="tight")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_mean.png", bbox_inches="tight")
+        plt.close()
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.set_extent([5, 12, 45, 50])  
+        im = ax.pcolormesh(xx1, xx2, Y.std(0), cmap="inferno", shading="auto")
+        cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precip. std (mm)")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_std.pdf", bbox_inches="tight")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_std.png", bbox_inches="tight")
+        plt.close()
+
+        for k in range(10):
+            fig = plt.figure(figsize=(10, 8))
+            ax = plt.axes(projection=ccrs.PlateCarree())
+            ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+            ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+            ax.set_extent([5, 12, 45, 50])  
+            im = ax.pcolormesh(xx1, xx2, Y[k], cmap="Blues", shading="auto")
+            cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/sample-{k}.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred-{k}.png", bbox_inches="tight")
+            plt.close()
+
+        
+        # plot task, i.e. full version and masked version
+        true_ys_normed = torch.cat((yc, yt), dim=0)
+        true_ys = true_ys_normed * y_std + y_mean
+        xx1, xx2, true_Y = scrambled_ctxt_trgt_to_grid(xs, true_ys.unsqueeze(0))
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.set_extent([5, 12, 45, 50])  
+        im = ax.pcolormesh(xx1, xx2, true_Y.squeeze(0), cmap="Blues", shading="auto")
+        cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/full.pdf", bbox_inches="tight")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/full.png", bbox_inches="tight")
+        plt.close()
+
+
+        masked_Y = scrambled_sprs_to_masked_grid(Xc, yc, xx1, xx2)
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.set_extent([5, 12, 45, 50])
+        cmap = plt.cm.Blues.copy()
+        cmap.set_bad(color="red")
+        im = ax.pcolormesh(xx1, xx2, masked_Y, cmap=cmap, shading="auto")
+        cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/ctxt.pdf", bbox_inches="tight")
+        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/ctxt.png", bbox_inches="tight")
+        plt.close()
+
     # store results
-    with open(PATH + f"/{function_type}/{model_name}/{prior}/results.json", 'w') as f:
+    with open(PATH + f"{model_name}/{prior}/results.json", 'w') as f:
         json.dump({k: v.tolist() for k, v in results.items()}, f, indent=4)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prior transfer experiment")
+    parser = argparse.ArgumentParser(description="Prior transfer era5.")
     parser.add_argument('--prior', type=str, default=None, help='Type of prior.')
     parser.add_argument('--model_name', type=str, default=None, help='Type of BNN approximate inference algorithm.')
-    parser.add_argument('--hidden_dims', type=int, nargs='+', default=[48, 48], help='Hidden layer dims of BNNs.')
-    parser.add_argument('--num_test_sets', type=int, default=16, help='Number of test datasets for evaluation.')
-    parser.add_argument('--function_type', type=str, default='sawtooth', help='Type of function/dataset.')
+    parser.add_argument('--hidden_dims', type=int, nargs='+', default=[64, 64, 64], help='Hidden layer dims of BNNs.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available.')
-    parser.add_argument('--use_shared_test_sets', action='store_true', help='Use pre-made test datasets rather than constructing new ones on the fly.')
 
     args = parser.parse_args()
     main(**vars(args))

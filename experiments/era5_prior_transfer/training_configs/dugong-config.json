@@ -1,0 +1,14 @@
+{
+    "codename": "dugong",
+    "architecture": [
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "tanh",
+    "training_steps": 30000,
+    "learning_rate": 0.005,
+    "final_learning_rate": 5e-05,
+    "use_gpu": true,
+    "use_pretrained": false
+}

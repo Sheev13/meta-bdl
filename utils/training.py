@@ -59,16 +59,20 @@ def train_meta_model(
                 print("Done.")
         else:
             device = torch.device('cpu')
-    
-    meta_dataset = MetaDataset(md)
 
     # move dataset into torch dataloader
     if dataset_on_cpu:
-        generator = torch.Generator(device='cpu')
+        with torch.device("cpu"):
+            meta_dataset = MetaDataset(md)
+            # generator = torch.Generator(device="cpu")
+            # sampler = torch.utils.data.RandomSampler(meta_dataset, generator=generator)
+            # dataloader = torch.utils.data.DataLoader(meta_dataset, sampler=sampler)
+            dataloader = torch.utils.data.DataLoader(meta_dataset)
     else:
+        meta_dataset = MetaDataset(md)
         generator = torch.Generator(device=device)
-    sampler = torch.utils.data.RandomSampler(meta_dataset, generator=generator)
-    dataloader = torch.utils.data.DataLoader(meta_dataset, sampler=sampler)
+        sampler = torch.utils.data.RandomSampler(meta_dataset, generator=generator)
+        dataloader = torch.utils.data.DataLoader(meta_dataset, sampler=sampler)
     dataset_iterator = iter(dataloader)
 
     # handle batch size, set number of training steps based on user's epochs or training steps input

@@ -19,6 +19,7 @@ class FCWeightwisePrior(nn.Module):
         self.d_in = d_in
         self.d_out = d_out
         self.scaled = scaled
+        self._hooks = {}
 
     @property
     def sigmas(self):
@@ -34,6 +35,23 @@ class FCWeightwisePrior(nn.Module):
         else:
             cov_flag = flag
         self.log_sigmas.requires_grad = cov_flag
+
+    def partially_trainable(self, n: int):
+        self.trainable(True)
+        num_weights = self.mus.numel()
+        assert n < num_weights
+        flat_idx = torch.randperm(num_weights)[:n]
+        mask_m = torch.zeros(num_weights) # mask for gradients of mean matrix param
+        mask_m[flat_idx] = 1
+        mask_m = mask_m.view_as(self.mus)
+        mask_s = mask_m.clone() # mask for gradients of log sigmas param
+
+        for key, hook in self._hooks.items():
+            hook.remove()
+        self._hooks.clear()
+
+        self._hooks['m'] = self.mus.register_hook(lambda g: g * mask_m)
+        self._hooks['s'] = self.log_sigmas.register_hook(lambda g: g * mask_s)
 
     def forward(self, num_repeats=None):
         if num_repeats is not None:
@@ -58,6 +76,7 @@ class FCUnitwisePrior(nn.Module):
         self.d_in = d_in
         self.d_out = d_out
         self.scaled = scaled
+        self._hooks = {}
 
     @property
     def Sigmas(self):
@@ -77,6 +96,30 @@ class FCUnitwisePrior(nn.Module):
             cov_flag = flag
         self.log_L_diags.requires_grad = cov_flag
         self.L_off_diags.requires_grad = cov_flag
+
+    def partially_trainable(self, n: int):
+        self.trainable(True)
+        num_weights = self.mus.numel()
+        assert n < num_weights
+        flat_idx = torch.randperm(num_weights)[:n]
+        mask_m = torch.zeros(num_weights) # mask for gradients of mean matrix param
+        mask_m[flat_idx] = 1
+        mask_m = mask_m.view_as(self.mus)
+        mask_d = mask_m.clone() # mask for gradients of log diagonal of covariance matrix param
+        mask_off_d = torch.zeros_like(self.L_off_diags) # mask for gradients of off-diagonals of cholesky matrix param
+        for i in range(self.d_out):
+            row_mask = mask_m[i]
+            block_mask = torch.outer(row_mask, row_mask)
+            mask_off_d[i] = block_mask
+
+        for key, hook in self._hooks.items():
+            hook.remove()
+        self._hooks.clear()
+
+        self._hooks['m'] = self.mus.register_hook(lambda g: g * mask_m)
+        self._hooks['d'] = self.log_L_diags.register_hook(lambda g: g * mask_d)
+        self._hooks['off_d'] = self.L_off_diags.register_hook(lambda g: g * mask_off_d)
+
 
     def forward(self, num_repeats=None):
         if num_repeats is not None:

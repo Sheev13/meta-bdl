@@ -9,6 +9,8 @@ import sys
 
 def subsample(X: torch.Tensor, Y: torch.Tensor, b: int):
     n = X.shape[-1] # number of datapoints
+    if b >= n:
+        return X, Y
     inds = torch.randperm(n)
     batch_inds = inds[:b]
     return X[batch_inds], Y[batch_inds]

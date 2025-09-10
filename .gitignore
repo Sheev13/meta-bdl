@@ -6,3 +6,4 @@
 *.err
 *.nc
 experiments/era5_prior_transfer/data/*
+experiments/goldilocks/data/abalone/*
