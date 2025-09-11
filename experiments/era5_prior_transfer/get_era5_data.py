@@ -11,6 +11,57 @@ from tqdm import tqdm
 from utils.data_utils import ctxt_trgt_split
 import zipfile
 import pathlib
+import cartopy.io.shapereader as shpreader
+from shapely.geometry import Point
+
+# define ctxt_trgt_split that never includes context points from within Switzerland
+def swissless_ctxt_trgt_split(X, y, X_m, X_s, ctxt_proportion_range=[0.025, 0.25]):
+
+    # Load Natural Earth country boundaries (scale 1:50m is usually fine)
+    shpfilename = shpreader.natural_earth(resolution='50m',
+                                        category='cultural',
+                                        name='admin_0_countries')
+
+    reader = shpreader.Reader(shpfilename)
+    countries = reader.records()
+
+    # Get Switzerland polygon(s)
+    swiss_geom = None
+    for country in countries:
+        if country.attributes['NAME_EN'] == 'Switzerland':
+            swiss_geom = country.geometry
+            break
+
+    if swiss_geom is None:
+        raise RuntimeError("Could not find Switzerland geometry")
+
+    # De-normalize longitude and latitude
+    X_denorm = X * X_s + X_m
+    lon, lat = X_denorm[:, 0].numpy(), X_denorm[:, 1].numpy()
+
+    # Build shapely Points
+    points = [Point(lo, la) for lo, la in zip(lon, lat)]
+
+    # Mask: keep only points NOT inside Switzerland
+    mask_outside_swiss = np.array([not swiss_geom.contains(p) for p in points])
+
+    eligible_ctxt_indices = np.where(mask_outside_swiss)[0]
+
+    n_total = len(X)
+    n_ctxt = np.random.randint(
+        int(ctxt_proportion_range[0] * n_total),
+        int(ctxt_proportion_range[1] * n_total) + 1
+    )
+
+    ctxt_indices = np.random.choice(eligible_ctxt_indices, size=n_ctxt, replace=False)
+    trgt_indices = np.setdiff1d(np.arange(n_total), ctxt_indices)
+
+    Xc = torch.tensor(X[ctxt_indices])
+    yc = torch.tensor(y[ctxt_indices])
+    Xt = torch.tensor(X[trgt_indices])
+    yt = torch.tensor(y[trgt_indices])
+
+    return Xc, yc, Xt, yt
 
 
 def main():
@@ -159,9 +210,11 @@ def main():
 
     full_test_sets = datasets[-16:]
     test_sets = [ctxt_trgt_split(*dataset, ctxt_proportion_range=[0.025, 0.25]) for dataset in full_test_sets]
+    swissless_test_sets = [swissless_ctxt_trgt_split(*dataset, X_m, X_s, ctxt_proportion_range=[0.025, 0.25]) for dataset in full_test_sets]
     train_sets = datasets[:-16]
     
     torch.save(test_sets, PATH + "/data/test_sets.pt")
+    torch.save(swissless_test_sets, PATH + "/data/swissless_test_sets.pt")
     torch.save(train_sets, PATH + "/data/train_sets.pt")
 
 

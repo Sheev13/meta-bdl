@@ -264,6 +264,7 @@ def train_variational_model(
     device_agnostic: bool = False,
     es_thresh: Optional[float] = None,
     retain_graph: bool = False,
+    bdnp_minibatch_size: Optional[int] = None,
 ) -> Dict:
     
     # set device to gpu if user wants to and one is available.
@@ -306,16 +307,19 @@ def train_variational_model(
     pbar = tqdm(range(training_steps), file=sys.stdout)
     
     X, Y = dataset
+    bdnp_kwargs = {}
+    if bdnp_minibatch_size is not None:
+        bdnp_kwargs['batch_size'] = bdnp_minibatch_size
 
     # main training loop here.
     for training_step in pbar:
 
         optimiser.zero_grad()
         try:
-            loss, metrics = model.loss(X, Y, num_samples=num_samples)
+            loss, metrics = model.loss(X, Y, num_samples=num_samples, **bdnp_kwargs)
         except ValueError:
             print("Handled Value Error")
-            loss, metrics = model.loss(X, Y, num_samples=num_samples)
+            loss, metrics = model.loss(X, Y, num_samples=num_samples, **bdnp_kwargs)
         
         loss.backward(retain_graph=retain_graph)
 

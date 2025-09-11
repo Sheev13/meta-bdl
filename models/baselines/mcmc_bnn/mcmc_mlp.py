@@ -206,7 +206,7 @@ class HMC_BNN(MCMC_BNN):
                      leapfrog_steps: int = 50,
                     ):
         W_new = W
-        P_new = P
+        P_new = torch.randn_like(W)
 
         for _ in range(leapfrog_steps):
             W_new, P_new = self.execute_leapfrog_step(

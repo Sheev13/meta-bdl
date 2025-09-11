@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=prior_transfer_array
-#SBATCH --output=experiments/prior_transfer/slurm_logs/%A_%a.out
-#SBATCH --error=experiments/prior_transfer/slurm_logs/%A_%a.err
+#SBATCH --job-name=era5_transfer
+#SBATCH --output=experiments/era5_prior_transfer/slurm_logs/%A_%a.out
+#SBATCH --error=experiments/era5_prior_transfer/slurm_logs/%A_%a.err
 #SBATCH --array=0-11
 
 #SBATCH --partition=gpu_p
@@ -34,4 +34,5 @@ prior=${priors[$prior_idx]}
 python experiments/era5_prior_transfer/transfer_prior.py \
     --prior $prior \
     --model_name $model \
+    --swissless \
     --use_gpu \

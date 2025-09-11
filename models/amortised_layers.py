@@ -111,38 +111,42 @@ class AmortisedLinearLayer(nn.Module):
         
         # main minibatching loop here:
         num_batches = (Xc.shape[0] + batch_size - 1) // batch_size
+        grad_batch_idx = torch.randperm(num_batches)[0].item()
         q_w = self.prior()
+        global_grad_enabled = torch.is_grad_enabled()
         for b in range(num_batches):
-            start = b * batch_size
-            end = min(start + batch_size, Xc.shape[0])
-            Xc_b = Xc[start:end,:] # shape (batch_size, x_dim)
-            Yc_b = Yc[start:end,:] # shape (batch_size, y_dim)
-            Xc_b_prev_l = Xc_prev_l[:,start:end,:] # shape (samples, batch_size, d_in)
-        
-            if self.inf_net_use_act:
-                Xc_b_rep = Xc_b.unsqueeze(0).repeat((num_samples, 1, 1))
-                Yc_b_rep = Yc_b.unsqueeze(0).repeat((num_samples, 1, 1))
-                z = torch.cat((Xc_b_rep, Xc_b_prev_l, Yc_b_rep), dim=-1) # shape (num_samples, batch_size, x_dim+y_dim+d_in)
-            else:
-                z = torch.cat((Xc_b, Yc_b), dim=-1) # shape (batch_size, x_dim+y_dim)
+            with torch.set_grad_enabled(global_grad_enabled and b == grad_batch_idx):
 
-            if self.targets_available:
-                Yc_b_l = Yc_b
-                log_sigmas = self.inf_net(z) - 2
-            else:
-                Yc_b_l, log_sigmas = self.inf_net(z).chunk(chunks=2, dim=-1) # each of shape (batch_size, y_dim) or (num_samples, batch_size, y_dim)
-                log_sigmas = log_sigmas - 2
+                start = b * batch_size
+                end = min(start + batch_size, Xc.shape[0])
+                Xc_b = Xc[start:end,:] # shape (batch_size, x_dim)
+                Yc_b = Yc[start:end,:] # shape (batch_size, y_dim)
+                Xc_b_prev_l = Xc_prev_l[:,start:end,:] # shape (samples, batch_size, d_in)
             
-            # handle nonlinearities and biases for context inputs
-            if self.first_layer:
-                Xc_b_prev_l_phi = torch.cat((Xc_b_prev_l, torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1) 
-            else:
-                Xc_b_prev_l_phi = torch.cat((self.nonlinearity(Xc_b_prev_l), torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1)
+                if self.inf_net_use_act:
+                    Xc_b_rep = Xc_b.unsqueeze(0).repeat((num_samples, 1, 1))
+                    Yc_b_rep = Yc_b.unsqueeze(0).repeat((num_samples, 1, 1))
+                    z = torch.cat((Xc_b_rep, Xc_b_prev_l, Yc_b_rep), dim=-1) # shape (num_samples, batch_size, x_dim+y_dim+d_in)
+                else:
+                    z = torch.cat((Xc_b, Yc_b), dim=-1) # shape (batch_size, x_dim+y_dim)
 
-            if len(Yc_b_l.shape) == 3 and len(log_sigmas.shape) == 2:
-                log_sigmas = log_sigmas.unsqueeze(0).repeat((num_samples, 1, 1))
+                if self.targets_available:
+                    Yc_b_l = Yc_b
+                    log_sigmas = self.inf_net(z) - 2
+                else:
+                    Yc_b_l, log_sigmas = self.inf_net(z).chunk(chunks=2, dim=-1) # each of shape (batch_size, y_dim) or (num_samples, batch_size, y_dim)
+                    log_sigmas = log_sigmas - 2
+                
+                # handle nonlinearities and biases for context inputs
+                if self.first_layer:
+                    Xc_b_prev_l_phi = torch.cat((Xc_b_prev_l, torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1) 
+                else:
+                    Xc_b_prev_l_phi = torch.cat((self.nonlinearity(Xc_b_prev_l), torch.ones((*Xc_b_prev_l.shape[:2], 1))), dim=-1)
 
-            q_w = compute_unitwise_posteriors(Xc_b_prev_l_phi, Yc_b_l, log_sigmas, q_w) # use previous q as prior.
+                if len(Yc_b_l.shape) == 3 and len(log_sigmas.shape) == 2:
+                    log_sigmas = log_sigmas.unsqueeze(0).repeat((num_samples, 1, 1))
+
+                q_w = compute_unitwise_posteriors(Xc_b_prev_l_phi, Yc_b_l, log_sigmas, q_w) # use previous q as prior.
 
         W = q_w.rsample() # sample weights from full posterior
 

@@ -20,6 +20,7 @@ from base_networks.base_architectures import Sin, SharpTanh
 def main(prior=None,
          model_name=None,
          hidden_dims=[64, 64, 64],
+         swissless=False,
          use_gpu=False,
          ):
     
@@ -61,8 +62,11 @@ def main(prior=None,
     # if mfvi, givi, hmc, or lmc we train on each task and then evaluate, regardless of prior
     # if bdnp with fancy prior, do no training but just evaluate on tasks
     # if bdnp with bnn prior, treat it the same as other bnns
-
-    lik = models.GaussianLikelihood(1, sigma_y=0.05)
+    
+    if model_name.lower() in ['bdnp', 'givi']:
+        lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True)
+    else:
+        lik = models.GaussianLikelihood(1, sigma_y=0.1)
     nl = torch.nn.ReLU()
 
     if 'bdnp' in model_name.lower():
@@ -111,7 +115,10 @@ def main(prior=None,
     if use_gpu:
         torch.cuda.manual_seed(69)
 
-    test_sets = torch.load(PATH + f"/data/test_sets.pt", weights_only=False)
+    if swissless:
+        test_sets = torch.load(PATH + f"/data/swissless_test_sets.pt", weights_only=False)
+    else:
+        test_sets = torch.load(PATH + f"/data/test_sets.pt", weights_only=False)
     num_test_sets = len(test_sets)
 
     results = {'ppd': torch.zeros((num_test_sets,)), 'mae': torch.zeros((num_test_sets,))}
@@ -122,8 +129,12 @@ def main(prior=None,
         Xt = Xt_raw.to(device=device, dtype=torch.float64)
         yt = yt_raw.to(device=device, dtype=torch.float64)
         xs = torch.cat((Xc, Xt), dim=0)
-        Path(PATH + f"/{model_name}/{prior}/figs/pngs/{j}").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}").mkdir(parents=True, exist_ok=True)
+        if swissless:
+            Path(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless").mkdir(parents=True, exist_ok=True)
+            Path(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless").mkdir(parents=True, exist_ok=True)
+        else:
+            Path(PATH + f"/{model_name}/{prior}/figs/pngs/{j}").mkdir(parents=True, exist_ok=True)
+            Path(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}").mkdir(parents=True, exist_ok=True)
 
         # initialise model if not pretrained BDNP
         if not ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')):
@@ -147,20 +158,24 @@ def main(prior=None,
             retain_graph = False
             if model_name.lower() == 'givi':
                 retain_graph = True
+            bdnp_minibatch_kwargs = {}
+            if model_name.lower() == 'bdnp':
+                bdnp_minibatch_kwargs['bdnp_minibatch_size'] = 250
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=15_000,
-                                                       learning_rate=1e-2,
-                                                       final_learning_rate=5e-4,
+                                                       training_steps=10_000,
+                                                       learning_rate=5e-3,
+                                                       final_learning_rate=1e-3,
                                                        num_samples=8,
                                                        device_agnostic=True,
-                                                       retain_graph=retain_graph)
+                                                       retain_graph=retain_graph,
+                                                       **bdnp_minibatch_kwargs)
 
             num_samples = 1000
             with torch.no_grad():
                 if model_name.lower() == 'bdnp':
-                    pred_samps = model(xs, Xc, yc, num_samples=100)[0]
-                    pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+                    pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=250)[0]
+                    pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=250)[0]
                 else:
                     pred_samps = model(xs, num_samples=100)
                     pred_yt = model(Xt, num_samples=num_samples)
@@ -168,7 +183,7 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 1e-4
+                step_size = 5e-5
                 steps = 5_000
                 burn = 2_000
                 thin = 50
@@ -188,10 +203,10 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 1e-4
+                step_size = 5e-5
                 steps = 250_000
                 burn = 50_000
-                thin = 5_000
+                thin = 2_500
                 leapfrog_steps = 1
 
             raw_samples, training_metrics = baselines.run_mcmc(model,
@@ -207,7 +222,7 @@ def main(prior=None,
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
 
-            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=100)            
+            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
             
             with torch.no_grad():
                 pred_yt = model.batch_forward(Xt, samples)
@@ -216,8 +231,8 @@ def main(prior=None,
 
 
         elif model_name.lower() == 'swag':
-            pretraining_metrics = baselines.pretrain(model, Xc, yc, training_steps=10_000, learning_rate=5e-3)
-            training_metrics = baselines.run_SWAG(model, Xc, yc, learning_rate=1e-2, swa_steps=200, c=25)
+            pretraining_metrics = baselines.pretrain(model, Xc, yc, training_steps=10_000, learning_rate=1e-3)
+            training_metrics = baselines.run_SWAG(model, Xc, yc, learning_rate=5e-3, swa_steps=200, c=25)
             num_samples=1000
             with torch.no_grad():
                 pred_samps = model.bma_forward(xs, num_samples=100)
@@ -229,9 +244,8 @@ def main(prior=None,
         if model_name.lower() == 'bdnp' and prior != 'bnn':
             num_samples = 1000
             with torch.no_grad():
-                if model_name.lower() == 'bdnp':
-                    pred_samps = model(xs, Xc, yc, num_samples=100)[0]
-                    pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+                pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]
+                pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=50)[0]
 
         
         else:        ###### plot training metrics for all other models (i.e. not the pre-trained BDNP case) ######
@@ -248,8 +262,12 @@ def main(prior=None,
                 elif key == 'kl':
                     axes[i].set_ylim([0, 2000])
 
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
+            if swissless:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/training.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/training.png", bbox_inches="tight")
+            else:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
             plt.close()
 
         if model_name.lower() == 'swag':
@@ -260,8 +278,12 @@ def main(prior=None,
                 axes[i].set_xlabel(key)
                 axes[i].grid()
 
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pretraining.pdf", bbox_inches="tight")
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pretraining.png", bbox_inches="tight")
+            if swissless:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/pretraining.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/pretraining.png", bbox_inches="tight")
+            else:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pretraining.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pretraining.png", bbox_inches="tight")
             plt.close()
 
 
@@ -274,6 +296,10 @@ def main(prior=None,
         # normalise data for MAE and plotting:
         X_means, X_stds = torch.load(PATH + "/data/X_norm_consts.pt", weights_only=False)
         y_mean, y_std = torch.load(PATH + "/data/y_norm_consts.pt", weights_only=False)
+        X_means = X_means.to(device=device, dtype=torch.float64)
+        X_stds = X_stds.to(device=device, dtype=torch.float64)
+        y_mean = y_mean.to(device=device, dtype=torch.float64)
+        y_std = y_std.to(device=device, dtype=torch.float64)
         pred_yt = pred_yt * y_std + y_mean
         pred_samps = pred_samps * y_std + y_mean
         yt = yt * y_std + y_mean
@@ -292,72 +318,95 @@ def main(prior=None,
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
-        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.add_feature(cfeature.COASTLINE, linewidth=1.2)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=1.0)
         ax.set_extent([5, 12, 45, 50])  
         im = ax.pcolormesh(xx1, xx2, Y.mean(0), cmap="Blues", shading="auto")
         cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_mean.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_mean.png", bbox_inches="tight")
+        if swissless:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/pred_mean.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/pred_mean.png", bbox_inches="tight")
+        else:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_mean.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_mean.png", bbox_inches="tight")
         plt.close()
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
-        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.add_feature(cfeature.COASTLINE, linewidth=1.2)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=1.0)
         ax.set_extent([5, 12, 45, 50])  
         im = ax.pcolormesh(xx1, xx2, Y.std(0), cmap="inferno", shading="auto")
         cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precip. std (mm)")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_std.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_std.png", bbox_inches="tight")
+        if swissless:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/pred_std.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/pred_std.png", bbox_inches="tight")
+        else:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/pred_std.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred_std.png", bbox_inches="tight")
         plt.close()
 
         for k in range(10):
             fig = plt.figure(figsize=(10, 8))
             ax = plt.axes(projection=ccrs.PlateCarree())
-            ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
-            ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+            ax.add_feature(cfeature.COASTLINE, linewidth=1.2)
+            ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=1.0)
             ax.set_extent([5, 12, 45, 50])  
             im = ax.pcolormesh(xx1, xx2, Y[k], cmap="Blues", shading="auto")
             cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/sample-{k}.pdf", bbox_inches="tight")
-            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred-{k}.png", bbox_inches="tight")
+            if swissless:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/sample-{k}.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/pred-{k}.png", bbox_inches="tight")
+            else:
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/sample-{k}.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/pred-{k}.png", bbox_inches="tight")
             plt.close()
 
         
         # plot task, i.e. full version and masked version
-        true_ys_normed = torch.cat((yc, yt), dim=0)
-        true_ys = true_ys_normed * y_std + y_mean
+        true_ys = torch.cat((yc, yt), dim=0)
         xx1, xx2, true_Y = scrambled_ctxt_trgt_to_grid(xs, true_ys.unsqueeze(0))
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
-        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.add_feature(cfeature.COASTLINE, linewidth=1.2)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=1.0)
         ax.set_extent([5, 12, 45, 50])  
         im = ax.pcolormesh(xx1, xx2, true_Y.squeeze(0), cmap="Blues", shading="auto")
         cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/full.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/full.png", bbox_inches="tight")
+        if swissless:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/full.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/full.png", bbox_inches="tight")
+        else:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/full.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/full.png", bbox_inches="tight")
         plt.close()
 
 
-        masked_Y = scrambled_sprs_to_masked_grid(Xc, yc, xx1, xx2)
+        masked_Y = scrambled_sprs_to_masked_grid(Xc[:,:2], yc, xx1, xx2)
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.8)
-        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=0.6)
+        ax.add_feature(cfeature.COASTLINE, linewidth=1.2)
+        ax.add_feature(cfeature.BORDERS, linestyle=":", linewidth=1.0)
         ax.set_extent([5, 12, 45, 50])
         cmap = plt.cm.Blues.copy()
-        cmap.set_bad(color="red")
+        cmap.set_bad(color="maroon")
         im = ax.pcolormesh(xx1, xx2, masked_Y, cmap=cmap, shading="auto")
         cb = plt.colorbar(im, ax=ax, orientation="vertical", shrink=0.7, label="Precipitation (mm)")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/ctxt.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/ctxt.png", bbox_inches="tight")
+        if swissless:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/ctxt.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/ctxt.png", bbox_inches="tight")
+        else:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/ctxt.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/ctxt.png", bbox_inches="tight")
         plt.close()
 
     # store results
-    with open(PATH + f"{model_name}/{prior}/results.json", 'w') as f:
+    if swissless:
+        results_path = PATH + f"/{model_name}/{prior}/results_swissless.json"
+    else:
+        results_path = PATH + + f"/{model_name}/{prior}/results.json"
+    with open(results_path, 'w') as f:
         json.dump({k: v.tolist() for k, v in results.items()}, f, indent=4)
 
 
@@ -366,6 +415,7 @@ if __name__ == "__main__":
     parser.add_argument('--prior', type=str, default=None, help='Type of prior.')
     parser.add_argument('--model_name', type=str, default=None, help='Type of BNN approximate inference algorithm.')
     parser.add_argument('--hidden_dims', type=int, nargs='+', default=[64, 64, 64], help='Hidden layer dims of BNNs.')
+    parser.add_argument('--swissless', action='store_true', help='Whether to omit Swiss data from test set context sets.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available.')
 
     args = parser.parse_args()

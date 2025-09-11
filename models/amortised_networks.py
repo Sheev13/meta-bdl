@@ -82,7 +82,7 @@ class BDNP(nn.Module):
             for l in self.layers:
                 l.prior.trainable(flag, just_mean=just_mean)
 
-    def set_prior_trainability(self, proportion: float, from_front: bool = True):
+    def set_prior_trainability(self, proportion: float, from_front: bool = False):
         assert proportion >= 0.0
         assert proportion <= 1.0
         if self.prior_type not in [0, 1]:

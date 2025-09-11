@@ -3,3 +3,4 @@ from .mcmc_bnn.mcmc_mlp import HMC_BNN, LMC_BNN
 from .mcmc_bnn.mcmc import run_mcmc
 from .swag_bnn.swag_mlp import SWAG_BNN
 from .swag_bnn.swag import pretrain, run_SWAG
+from .neural_process.lnpf import NP, BNP, ANP, ABNP

@@ -110,7 +110,10 @@ def main(prior=None,
     # if bdnp with fancy prior, do no training but just evaluate on tasks
     # if bdnp with bnn prior, treat it the same as other bnns
 
-    lik = models.GaussianLikelihood(1, sigma_y=0.05)
+    if model_name.lower() == 'mfvi':
+        lik = models.GaussianLikelihood(1, sigma_y=0.1)
+    else:
+        lik = models.GaussianLikelihood(1, sigma_y=0.05)
 
     if 'bdnp' in model_name.lower():
         model_kwargs = {'x_dim': 1,
@@ -201,9 +204,9 @@ def main(prior=None,
                 retain_graph = True
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=10_000,
-                                                       learning_rate=1e-2,
-                                                       final_learning_rate=5e-4,
+                                                       training_steps=15_000,
+                                                       learning_rate=5e-3,
+                                                       final_learning_rate=1e-4,
                                                        num_samples=8,
                                                        device_agnostic=True,
                                                        retain_graph=retain_graph)

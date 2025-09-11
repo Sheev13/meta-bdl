@@ -1,0 +1,10 @@
+{
+    "prior": "aardvark",
+    "model_name": "swag",
+    "hidden_dims": [
+        64,
+        64,
+        64
+    ],
+    "use_gpu": true
+}

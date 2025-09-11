@@ -18,7 +18,7 @@ def main(codename='aardvark'):
     PATH = str(Path(__file__).resolve().parent)
 
     positions = np.arange(len(methods)) * 2.0  # space out models
-    width = 0.6  # width of each box
+    width = 0.4  # width of each box
     marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
 
     for metric in  ['ppd', 'mae']:

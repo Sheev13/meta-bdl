@@ -1,0 +1,10 @@
+{
+    "prior": "bnn",
+    "model_name": "bdnp",
+    "hidden_dims": [
+        64,
+        64,
+        64
+    ],
+    "use_gpu": true
+}

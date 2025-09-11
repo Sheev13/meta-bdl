@@ -6,6 +6,7 @@ This file contains the following classes:
 import torch
 import torch.nn as nn
 from typing import Optional
+import warnings
 
 class GaussianLikelihood(nn.Module):
     """
@@ -70,6 +71,8 @@ class BernoulliLikelihood(nn.Module):
         # so the function must be squashed accordingly.
         if f is None:
             return None
+        if f.shape[-1] > 1:
+            warnings.warn("Using Bernoulli likelihood for multi-output logit function. Are you sure you mean to do this?")
         return torch.sigmoid(f).clamp(min=1e-5, max=1.0-1e-5)
     
     def log_prob(self, predictions: torch.Tensor = None, targets: torch.Tensor = None):
