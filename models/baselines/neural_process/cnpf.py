@@ -331,31 +331,33 @@ class ConvCNP(nn.Module):
 class CNP(nn.Module):
     def __init__(self,
                  x_dim: int = None,
-                 deepset_dims: List[int]=[32, 32],
+                 y_dim: int = 1,
+                 encoder_dims: List[int]=[32, 32],
                  decoder_dims: List[int]=[32, 32],
                  nonlinearity: nn.Module = nn.ReLU(),
                  classification: bool = False,
                 ):
         super().__init__()
         self.x_dim = x_dim
-        if deepset_dims[-1] != decoder_dims[0]:
+        if encoder_dims[-1] != decoder_dims[0]:
             raise ValueError("Final DeepSet layer dimension and decoding MLP first layer dimension must match.")
 
-        deepset_dims = [x_dim + 1] + deepset_dims # y_dim assumed to be 1
-        self.encoder = DeepSet(mlp_dims=deepset_dims,
+        enc_dims = [x_dim + y_dim] + encoder_dims.copy() # y_dim assumed to be 1
+        self.encoder = DeepSet(mlp_dims=enc_dims,
                                 nonlinearity=nonlinearity,
                                 )
         
-        decoder_dims[0] = decoder_dims[0] + x_dim
+        dec_dims = [decoder_dims[0] + x_dim] + decoder_dims.copy()[1:]
         if classification:
-            decoder_dims += [1]
+            dec_dims += [y_dim]
         else:
-            decoder_dims += [2]
-        self.decoder = MLP(dims=decoder_dims, nonlinearity=nonlinearity)
+            dec_dims += [2*y_dim]
+
+        self.decoder = MLP(dims=dec_dims, nonlinearity=nonlinearity)
 
         self.classification = classification
 
-    def forward(self, X_c: torch.Tensor, y_c: torch.Tensor, X_t: torch.Tensor):
+    def forward(self, X_t: torch.Tensor, X_c: torch.Tensor, y_c: torch.Tensor):
         if len(y_c.shape) < 2:
             y_c = y_c.unsqueeze(-1)
         r = self.encoder(X_c, y_c, flat_representation=True) # shape (latent_dim,)
@@ -363,7 +365,6 @@ class CNP(nn.Module):
         n_t = X_t.shape[0]
         repeated_r = r.unsqueeze(0).repeat((n_t, 1)) # shape (n_t, latent_dim)
         decoder_input = torch.cat((repeated_r, X_t), dim=-1) # shape (n_t, latent_dim + x_dim)
-
         pred_params = self.decoder(decoder_input) # shape (n_t, 2) or (n_t, 1)
 
         if self.classification:
@@ -375,7 +376,7 @@ class CNP(nn.Module):
 
     def loss(self, X_c, y_c, X_t, y_t, **redundant_kwargs):
             """Predictive log likelihood of targets given contexts"""
-            predictive = self(X_c, y_c, X_t)
+            predictive = self(X_t, X_c, y_c)
             ll = predictive.log_prob(y_t.squeeze(-1)).sum()
 
             metrics = {
@@ -432,7 +433,7 @@ class TNP(nn.Module):
         self.classification = classification
         self.non_diagonal = non_diagonal
 
-    def forward(self, X_c: torch.Tensor, y_c: torch.Tensor, X_t: torch.Tensor):
+    def forward(self, X_t: torch.Tensor, X_c: torch.Tensor, y_c: torch.Tensor):
         if len(y_c.shape) < 2:
             y_c = y_c.unsqueeze(-1)
             
@@ -462,7 +463,7 @@ class TNP(nn.Module):
 
     def loss(self, X_c, y_c, X_t, y_t, **redundant_kwargs):
             """Predictive log likelihood of targets given contexts"""
-            predictive = self(X_c, y_c, X_t)
+            predictive = self(X_t, X_c, y_c)
             if self.classification or not self.non_diagonal:
                 ll = predictive.log_prob(y_t.squeeze(-1)).sum()
             else: # i.e. if self.non_diagonal

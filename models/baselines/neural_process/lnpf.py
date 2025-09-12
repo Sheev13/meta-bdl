@@ -35,12 +35,11 @@ class BaseLNP(nn.Module, ABC):
         self.r_dim = encoder_dims[-1]
         if encoder_dims[-1] != decoder_dims[0]:
             raise ValueError("Final DeepSet layer dimension and decoding MLP first layer dimension must match.")
-        self.encoder_dims = encoder_dims
+        self.encoder_dims = encoder_dims.copy()
         self.encoder = None # define in child classes
         
-        decoder_dims[0] = decoder_dims[0] + x_dim
-        decoder_dims += [y_dim]
-        self.decoder = MLP(dims=decoder_dims, nonlinearity=nonlinearity)
+        dec_dims = [decoder_dims[0]+x_dim] + decoder_dims.copy()[1:] + [y_dim]
+        self.decoder = MLP(dims=dec_dims, nonlinearity=nonlinearity)
 
         self.likelihood = lik
         self.nonlinearity = nonlinearity
@@ -55,13 +54,14 @@ class BaseLNP(nn.Module, ABC):
                 y_c = y_c.unsqueeze(-1) 
         q_z = self.compute_posterior(X_c, y_c)
         z_samps = q_z.rsample((num_samples,)) # shape (num_samples, r_dim)
+        # z_samps = q_z.mean.unsqueeze(0).repeat((num_samples, 1)) # for debugging - only use mean.
 
         n_t = X_t.shape[0]
         repeated_z_samps = z_samps.unsqueeze(1).repeat((1, n_t, 1))
         repeated_X_t = X_t.unsqueeze(0).repeat((num_samples, 1, 1))
         decoder_input = torch.cat((repeated_z_samps, repeated_X_t), dim=-1) # shape (num_samples, n_t, r_dim + x_dim)
-
-        return self.likelihood(self.decoder(decoder_input)) # shape (num_samples, n_t, y_dim)
+        dec_out = self.decoder(decoder_input)
+        return self.likelihood(dec_out) # shape (num_samples, n_t, y_dim)
 
     def loss(self, X_c, y_c, X_t, y_t, num_samples=1, **redundant_kwargs):
         """Predictive log likelihood of targets given contexts"""
@@ -74,30 +74,27 @@ class BaseLNP(nn.Module, ABC):
         if self.y_dim == 1 and isinstance(self.likelihood, GaussianLikelihood):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
-
         return - lel, metrics
 
 
 class NP(BaseLNP):
     def __init__(self, **base_kwargs):
         super().__init__(**base_kwargs)
-        self.encoder_dims[-1] *= 2
-        encoder_dims = [self.x_dim + self.y_dim] + self.encoder_dims
+        encoder_dims = [self.x_dim + self.y_dim] + self.encoder_dims + [2*self.r_dim]
         self.encoder = DeepSet(encoder_dims, nonlinearity=self.nonlinearity)
 
     def compute_posterior(self, X_c: torch.Tensor, y_c: torch.Tensor):
         if X_c is None or y_c is None:
             raise ValueError("NP requires a non-empty context set.")
         r_mean, r_log_std = self.encoder(X_c, y_c, flat_representation=True).chunk(2) # each of shape (r_dim,)
-        r_log_std = r_log_std - 3.0 # for stability, ensure we begin training with small variances in latent variable's posterior.
-        return torch.distributions.Normal(r_mean, 0.0001 + 0.9999*r_log_std.exp())
+        r_log_std = r_log_std - 2.0 # for stability, ensure we begin training with small variances in latent variable's posterior.
+        return torch.distributions.Normal(r_mean, 0.0001 + 0.9999*r_log_std.sigmoid())
 
 
 class BNP(BaseLNP):
     def __init__(self, **base_kwargs):
         super().__init__(**base_kwargs)
-        self.encoder_dims[-1] *= 2
-        encoder_dims = [self.x_dim + self.y_dim] + self.encoder_dims
+        encoder_dims = [self.x_dim + self.y_dim] + self.encoder_dims + [2*self.r_dim]
         self.encoder = MLP(encoder_dims, nonlinearity=self.nonlinearity)
 
         self.p_mean = torch.zeros((self.r_dim,))
@@ -109,7 +106,7 @@ class BNP(BaseLNP):
 
         # if non-empty context set, proceed as normal in an NP:
         m, raw_s = self.encoder(torch.cat((X_c, y_c), dim=-1)).chunk(2, dim=-1) # each of shape (n_t, r_dim)
-        s = 0.0001 + 0.9999*(raw_s - 3).exp() # the most stable operation in the history of stable operations, maybe ever.
+        s = 0.0001 + 0.9999*(raw_s - 1.0).exp() # the most stable operation in the history of stable operations, maybe ever.
 
         # below implements equation (8) of Volpp paper on Bayesian context aggregation for NPs.
         q_std = (self.p_std.pow(-2) + s.pow(-2).sum(0)).pow(-0.5)
@@ -118,7 +115,7 @@ class BNP(BaseLNP):
         return torch.distributions.Normal(q_mean, q_std)
 
 
-class ANP(BaseLNP):
+class LANP(BaseLNP):
     def __init__(self, **base_kwargs):
         super().__init__(**base_kwargs)
         num_layers = len(self.encoder_dims)
@@ -141,7 +138,7 @@ class ANP(BaseLNP):
         if X_c is None or y_c is None:
             raise ValueError("NP requires a non-empty context set.")
         r_mean, r_log_std = self.encoder(torch.cat((X_c, y_c), dim=-1)).mean(0).chunk(2) # each of shape (r_dim,)
-        r_log_std = r_log_std - 3.0 # for stability, ensure we begin training with small variances in latent variable's posterior.
+        r_log_std = r_log_std - 1.0 # for stability, ensure we begin training with small variances in latent variable's posterior.
         return torch.distributions.Normal(r_mean, 0.0001 + 0.9999*r_log_std.exp())
 
 
@@ -173,7 +170,7 @@ class ABNP(BaseLNP):
 
         # if non-empty context set, proceed as normal in an NP:
         m, raw_s = self.encoder(torch.cat((X_c, y_c), dim=-1)).chunk(2, dim=-1) # each of shape (n_t, r_dim)
-        s = 0.0001 + 0.9999*(raw_s - 3).exp() # the most stable operation in the history of stable operations, maybe ever.
+        s = 0.0001 + 0.9999*(raw_s - 1.0).exp() # the most stable operation in the history of stable operations, maybe ever.
 
         # below implements equation (8) of Volpp paper on Bayesian context aggregation for NPs.
         q_std = (self.p_std.pow(-2) + s.pow(-2).sum(0)).pow(-0.5)
