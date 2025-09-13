@@ -173,7 +173,7 @@ def main(
         bdnp = torch.load(PATH + f'/saved_models/bdnp-{codename}', weights_only=False)
 
     X_t = test_grid([28, 28])
-    samps = 10
+    samps = 16
 
     # prior samples:
     with torch.no_grad():
@@ -222,8 +222,8 @@ def main(
             save_image(ctxt_img, PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}/ctxt.png")
 
             with torch.no_grad():
-                posterior_samps = bdnp(X_t, X_c, Y_c, num_samples=samps)[0] # shape (samps, 784, 1)
-                super_posterior_samps = bdnp(fine_X_t, X_c, Y_c, num_samples=samps)[0] # shape (samps, 10_000, 1)
+                posterior_samps = bdnp(X_t, X_c, Y_c, num_samples=samps, batch_size=within_task_batch_size)[0] # shape (samps, 784, 1)
+                super_posterior_samps = bdnp(fine_X_t, X_c, Y_c, num_samples=samps, batch_size=within_task_batch_size)[0] # shape (samps, 10_000, 1)
 
             for i in range(samps):
                 pred_img = posterior_samps[i,:,:].reshape((28, 28, 1))

@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu_p
-#SBATCH --qos=gpu_long
+#SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
 #SBATCH --constraint=a100_80gb|h100_80gb
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=1
 #SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --nice=100
@@ -21,7 +21,10 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/era5_prior_transfer/learn_prior.py \
-    --codename dugong \
+    --codename echidna \
     --architecture 64 64 64 \
-    --nonlinearity tanh \
+    --nonlinearity relu \
+    --training_steps 200_000 \
+    --learning_rate 1e-3 \
+    --final_learning_rate 1e-5 \
     --use_gpu
