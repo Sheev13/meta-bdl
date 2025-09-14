@@ -3,7 +3,7 @@
 #SBATCH --job-name=goldilocks
 #SBATCH --output=experiments/goldilocks/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/goldilocks/slurm_logs/%A_%a.err
-#SBATCH --array=0-23
+#SBATCH --array=0-19
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_long
@@ -20,7 +20,7 @@
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
-models=("mfvi" "givi" "np" "anp" "bnp" "abnp")
+models=("mfvi" "givi" "np" "bnp" "ar-tnp")
 seeds=("21" "42" "69" "420")
 
 num_models=${#models[@]}

@@ -20,4 +20,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 # Run your script with arguments
-python notebooks/debug_np.py --model abnp --use_gpu
+python notebooks/debug_np.py --model bnp --use_gpu

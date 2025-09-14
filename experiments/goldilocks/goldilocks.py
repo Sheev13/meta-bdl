@@ -15,17 +15,13 @@ from utils.training import train_meta_model, train_variational_model
 def main(model: str = None,
          dataset: str = None,
          prior_trainability: float = None,
-         training_steps: int = 30_000,
-         learning_rate: float = 5e-3,
-         final_learning_rate: float = 1e-4,
          seed: int = None,
          use_gpu: bool = False):
-    args_dict = locals()
 
     print("model: ", model, " seed: ", seed, "prior trainability: ", prior_trainability)
 
     model = model.lower()
-    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'abnp', 'anp'] # no conv(c)np since there are 7 > 3 input dims.
+    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp'] # no conv(c/g)np since there are 7 > 3 input dims.
     if model in ['swag', 'mfvi', 'givi']:
         model_type = 'bnn'
     elif model == 'bdnp':
@@ -69,12 +65,7 @@ def main(model: str = None,
     Path(PATH + f"/results").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results/{dataset}").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results/{dataset}/{model_codename}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + "/training_configs").mkdir(parents=True, exist_ok=True)
 
-    with open(PATH + f"/training_configs/{model_codename}-config-{seed}.json", 'w') as f:
-        json.dump(args_dict, f, indent=4)
-
-    ##### done to here #####
     # define model classes, model kwargs, training funcs, training kwargs, seed
 
     nl = torch.nn.SiLU()
@@ -102,10 +93,10 @@ def main(model: str = None,
             else:
                 m.set_prior_trainability(prior_trainability, from_front=False)
 
-        training_kwargs = {'training_steps': training_steps,
+        training_kwargs = {'training_steps': 50_000,
                            'batch_size': 5,
-                           'learning_rate': learning_rate,
-                           'final_learning_rate': final_learning_rate,
+                           'learning_rate': 1e-3,
+                           'final_learning_rate': 5e-5,
                            'num_samples': 16,
                            'loss_function': 'pp-avi',
                            'ctxt_proportion_range': (0.1, 0.5),
@@ -128,39 +119,51 @@ def main(model: str = None,
         elif model == 'givi':
             m = baselines.GIVIBNN(**model_kwargs)
 
-        training_kwargs = {'training_steps': training_steps,
-                            'learning_rate': learning_rate,
-                            'final_learning_rate': final_learning_rate,
+        training_kwargs = {'training_steps': 25_000,
+                            'learning_rate': 5e-3,
+                            'final_learning_rate': 1e-4,
                             'num_samples': 8,
                             'device_agnostic': True,
                             'retain_graph': model=='givi'}
             
     elif model_type == 'np':
-        model_kwargs = {'x_dim': x_dim,
-                        'y_dim': 1,
-                        'lik': models.GaussianLikelihood(1, sigma_y=0.1, train=True), # should we really train this?
-                        'encoder_dims': architecture,
-                        'decoder_dims': architecture,
-                        'nonlinearity': nl}
+        if model in ['np', 'bnp']:
+            model_kwargs = {'x_dim': x_dim,
+                            'y_dim': 1,
+                            'lik': models.GaussianLikelihood(1, sigma_y=0.1, train=False), # should we train this?
+                            'encoder_dims': [256, 256, 256], # aything less and these NPs are just crap.
+                            'decoder_dims': [256, 256, 256],
+                            'nonlinearity': nl}
+            training_kwargs = {'training_steps': 500_000,
+                               'batch_size': 5,
+                               'learning_rate': 5e-4,
+                               'final_learning_rate': 1e-5,
+                               'num_samples': 16, # ignored for conditional family of NPs
+                               'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
+                               'ctxt_proportion_range': (0.1, 0.5),
+                               'task_subsample_fraction': None,
+                               'device_agnostic': True}
+        elif model == 'ar-tnp':
+            model_kwargs = {'x_dim': x_dim,
+                            'y_dim': 1,
+                            'num_layers': len(architecture),
+                            'r_dim': max(architecture),
+                            'nonlinearity': nl}
+            training_kwargs = {'training_steps': 50_000,
+                               'batch_size': 5,
+                               'learning_rate': 1e-3,
+                               'final_learning_rate': 5e-5,
+                               'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
+                               'ctxt_proportion_range': (0.1, 0.5),
+                               'task_subsample_fraction': None,
+                               'device_agnostic': True}
         
         if model == 'np':
             m = baselines.NP(**model_kwargs)
         elif model == 'bnp':
             m = baselines.BNP(**model_kwargs)
-        elif model == 'anp':
-            m = baselines.ANP(**model_kwargs)
-        elif model == 'abnp':
-            m = baselines.ABNP(**model_kwargs)
-
-        training_kwargs = {'training_steps': training_steps,
-                           'batch_size': 5,
-                           'learning_rate': 1e-2,
-                           'final_learning_rate': 1e-3,
-                           'num_samples': 32, # ignored for conditional family of NPs
-                           'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
-                           'ctxt_proportion_range': (0.1, 0.5),
-                           'task_subsample_fraction': None,
-                           'device_agnostic': True}
+        elif model == 'ar-tnp':
+            m = baselines.TNP(**model_kwargs)
         
     
     ############# Model is now defined. Time to train the thing. ##############
@@ -182,8 +185,18 @@ def main(model: str = None,
         with torch.no_grad():
             if model == 'bdnp':
                 pred_yt = model(Xt, Xc, yc, num_samples=num_predict_samps, batch_size=50)[0]
-            else:
+            elif model in ['np', 'bnp']:
                 pred_yt = model(Xt, Xc, yc, num_samples=num_predict_samps)
+            elif model == 'ar-tnp':
+                print("executing autoregressive TNP forward pass...")
+                pred_yt, ll = model.autoregressive_forward(Xt,
+                                                           Xc,
+                                                           yc,
+                                                           yt,
+                                                           num_samples=num_predict_samps,
+                                                           compute_ll=True,
+                                                           verbose=True)
+                print("All done my boy.")
 
     elif model_type == 'bnn':
         training_metrics = train_variational_model(m, (Xc, yc), **training_kwargs)
@@ -192,15 +205,10 @@ def main(model: str = None,
 
     fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
     for i, (key, value) in enumerate(training_metrics.items()):
-        axes[i].plot(value)
+        omitted_steps = 250
+        axes[i].plot(value[omitted_steps:])
         axes[i].set_xlabel(key)
         axes[i].grid()
-        if key == 'elbo':
-            axes[i].set_ylim([-5000, 500])
-        elif key == 'e_ll':
-            axes[i].set_ylim([-4000, 1000])
-        elif key == 'kl':
-            axes[i].set_ylim([0, 2000])
     plt.savefig(PATH + f"/figs/training/{model_codename}/pdfs/training_{seed}.pdf", bbox_inches="tight")
     plt.savefig(PATH + f"/figs/training/{model_codename}/pngs/training_{seed}.png", bbox_inches="tight")
     plt.close()
@@ -210,7 +218,10 @@ def main(model: str = None,
     results = {}
 
     # log per-datapoint average posterior predictive density
-    results['ppd'] = (m.likelihood.log_prob(pred_yt, yt).sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps * yt.shape[0]).log()).item()
+    if model != 'ar-tnp':
+        results['ppd'] = (m.likelihood.log_prob(pred_yt, yt).sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps * yt.shape[0]).log()).item()
+    else:
+        results['ppd'] = (ll.sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps + yt.shape[0]).log()).item()
     # normalise data for MAE and plotting:
     norm_consts = torch.load(PATH + f"/data/{dataset}/norm_consts.pt", weights_only=False)
     y_mean = norm_consts['y_mean']
@@ -232,9 +243,6 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default=None, help='run codename')
     parser.add_argument('--dataset', type=str, default='abalone', help='Name of dataset for which to run the experiment.')
     parser.add_argument('--prior_trainability', type=float, default=None, help='Proportion of weights whose prior is trainable.')
-    parser.add_argument('--training_steps', type=int, default=30_000, help='The number of training steps')
-    parser.add_argument('--learning_rate', type=float, default=5e-3, help='(Initial) learning rate')
-    parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--seed', type=int, default=None, help='Seed number for repeat trials.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one available. Default False.')
 

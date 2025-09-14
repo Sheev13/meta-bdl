@@ -512,6 +512,6 @@ class TNP(nn.Module):
                 samples[i,:] = self(X_t, aug_X_c, aug_y_c).mean
             
             if compute_ll:
-                return samples, ll.sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
+                return samples, ll
             return samples
                 

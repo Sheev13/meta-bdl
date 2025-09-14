@@ -106,7 +106,7 @@ class BNP(BaseLNP):
 
         # if non-empty context set, proceed as normal in an NP:
         m, raw_s = self.encoder(torch.cat((X_c, y_c), dim=-1)).chunk(2, dim=-1) # each of shape (n_t, r_dim)
-        s = 0.0001 + 0.9999*(raw_s - 1.0).sigmoid() # the most stable operation in the history of stable operations, maybe ever.
+        s = 0.0001 + 0.9999*(raw_s - 1.0).exp() # the most stable operation in the history of stable operations, maybe ever.
 
         # below implements equation (8) of Volpp paper on Bayesian context aggregation for NPs.
         q_std = (self.p_std.pow(-2) + s.pow(-2).sum(0)).pow(-0.5)
@@ -170,7 +170,7 @@ class ABNP(BaseLNP):
 
         # if non-empty context set, proceed as normal in an NP:
         m, raw_s = self.encoder(torch.cat((X_c, y_c), dim=-1)).chunk(2, dim=-1) # each of shape (n_t, r_dim)
-        s = 0.0001 + 0.9999*(raw_s - 1.0).sigmoid() # the most stable operation in the history of stable operations, maybe ever.
+        s = 0.0001 + 0.9999*(raw_s - 1.0).exp() # the most stable operation in the history of stable operations, maybe ever.
 
         # below implements equation (8) of Volpp paper on Bayesian context aggregation for NPs.
         q_std = (self.p_std.pow(-2) + s.pow(-2).sum(0)).pow(-0.5)
