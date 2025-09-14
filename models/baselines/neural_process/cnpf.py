@@ -3,9 +3,75 @@ from torch import nn
 import torch.nn.functional as F
 from base_networks.set_architectures import DeepSet, ConvDeepSet, Transformer
 from base_networks.base_architectures import MLP
+from abc import ABC, abstractmethod
+from tqdm import tqdm
 # from sparse_gp.likelihoods import GaussianLikelihood
 
 from typing import List, Optional
+
+
+class CNP(nn.Module):
+    def __init__(self,
+                 x_dim: int = None,
+                 y_dim: int = 1,
+                 encoder_dims: List[int]=[32, 32],
+                 decoder_dims: List[int]=[32, 32],
+                 nonlinearity: nn.Module = nn.ReLU(),
+                 classification: bool = False,
+                ):
+        super().__init__()
+        self.x_dim = x_dim
+        if encoder_dims[-1] != decoder_dims[0]:
+            raise ValueError("Final DeepSet layer dimension and decoding MLP first layer dimension must match.")
+
+        enc_dims = [x_dim + y_dim] + encoder_dims.copy() # y_dim assumed to be 1
+        self.encoder = DeepSet(mlp_dims=enc_dims,
+                                nonlinearity=nonlinearity,
+                                )
+        
+        dec_dims = [decoder_dims[0] + x_dim] + decoder_dims.copy()[1:]
+        if classification:
+            dec_dims += [y_dim]
+        else:
+            dec_dims += [2*y_dim]
+
+        self.decoder = MLP(dims=dec_dims, nonlinearity=nonlinearity)
+
+        self.classification = classification
+
+    def forward(self, X_t: torch.Tensor, X_c: torch.Tensor, y_c: torch.Tensor):
+        if len(y_c.shape) < 2:
+            y_c = y_c.unsqueeze(-1)
+        r = self.encoder(X_c, y_c, flat_representation=True) # shape (latent_dim,)
+
+        n_t = X_t.shape[0]
+        repeated_r = r.unsqueeze(0).repeat((n_t, 1)) # shape (n_t, latent_dim)
+        decoder_input = torch.cat((repeated_r, X_t), dim=-1) # shape (n_t, latent_dim + x_dim)
+        pred_params = self.decoder(decoder_input) # shape (n_t, 2) or (n_t, 1)
+
+        if self.classification:
+            logits = pred_params.squeeze()
+            return torch.distributions.Bernoulli(logits=logits)
+        else:
+            means, stds = pred_params[:,0], 0.02+0.98*nn.functional.softplus(pred_params[:,1])
+            return torch.distributions.Normal(means, stds)
+
+    def loss(self, X_c, y_c, X_t, y_t, **redundant_kwargs):
+            """Predictive log likelihood of targets given contexts"""
+            predictive = self(X_t, X_c, y_c)
+            ll = predictive.log_prob(y_t.squeeze(-1)).sum()
+
+            metrics = {
+                "ll": ll.detach().item(),
+            }
+                
+            return - ll, metrics
+    
+
+
+
+
+
 
 class ConvGNP(nn.Module):
     def __init__(self,
@@ -327,67 +393,12 @@ class ConvCNP(nn.Module):
             }
                 
             return - ll, metrics
-    
-class CNP(nn.Module):
-    def __init__(self,
-                 x_dim: int = None,
-                 y_dim: int = 1,
-                 encoder_dims: List[int]=[32, 32],
-                 decoder_dims: List[int]=[32, 32],
-                 nonlinearity: nn.Module = nn.ReLU(),
-                 classification: bool = False,
-                ):
-        super().__init__()
-        self.x_dim = x_dim
-        if encoder_dims[-1] != decoder_dims[0]:
-            raise ValueError("Final DeepSet layer dimension and decoding MLP first layer dimension must match.")
 
-        enc_dims = [x_dim + y_dim] + encoder_dims.copy() # y_dim assumed to be 1
-        self.encoder = DeepSet(mlp_dims=enc_dims,
-                                nonlinearity=nonlinearity,
-                                )
-        
-        dec_dims = [decoder_dims[0] + x_dim] + decoder_dims.copy()[1:]
-        if classification:
-            dec_dims += [y_dim]
-        else:
-            dec_dims += [2*y_dim]
-
-        self.decoder = MLP(dims=dec_dims, nonlinearity=nonlinearity)
-
-        self.classification = classification
-
-    def forward(self, X_t: torch.Tensor, X_c: torch.Tensor, y_c: torch.Tensor):
-        if len(y_c.shape) < 2:
-            y_c = y_c.unsqueeze(-1)
-        r = self.encoder(X_c, y_c, flat_representation=True) # shape (latent_dim,)
-
-        n_t = X_t.shape[0]
-        repeated_r = r.unsqueeze(0).repeat((n_t, 1)) # shape (n_t, latent_dim)
-        decoder_input = torch.cat((repeated_r, X_t), dim=-1) # shape (n_t, latent_dim + x_dim)
-        pred_params = self.decoder(decoder_input) # shape (n_t, 2) or (n_t, 1)
-
-        if self.classification:
-            logits = pred_params.squeeze()
-            return torch.distributions.Bernoulli(logits=logits)
-        else:
-            means, stds = pred_params[:,0], 0.02+0.98*nn.functional.softplus(pred_params[:,1])
-            return torch.distributions.Normal(means, stds)
-
-    def loss(self, X_c, y_c, X_t, y_t, **redundant_kwargs):
-            """Predictive log likelihood of targets given contexts"""
-            predictive = self(X_t, X_c, y_c)
-            ll = predictive.log_prob(y_t.squeeze(-1)).sum()
-
-            metrics = {
-                "ll": ll.detach().item(),
-            }
-                
-            return - ll, metrics
 
 class TNP(nn.Module):
     def __init__(self,
                  x_dim: int = None,
+                 y_dim: int = None,
                  num_layers: int = 2,
                  r_dim: int = 64,
                  nonlinearity: nn.Module = nn.ReLU(),
@@ -398,9 +409,10 @@ class TNP(nn.Module):
                 ):
         super().__init__()
         self.x_dim = x_dim
+        self.y_dim = y_dim
         self.r_dim = r_dim
 
-        self.tokeniser = MLP([x_dim + 1, r_dim, r_dim], nonlinearity=nonlinearity)
+        self.tokeniser = MLP([x_dim + y_dim, r_dim, r_dim], nonlinearity=nonlinearity)
 
         transformer_layer = nn.TransformerEncoderLayer(
             d_model=r_dim,
@@ -417,9 +429,9 @@ class TNP(nn.Module):
         )
 
         if classification or non_diagonal:
-            out_dim = 1
+            out_dim = y_dim
         else:
-            out_dim = 2
+            out_dim = 2*y_dim
 
         if non_diagonal:
             self.covariance_encoder = nn.TransformerEncoder(
@@ -458,19 +470,48 @@ class TNP(nn.Module):
             L = (y_t_cov_params @ y_t_cov_params.T).tril() # lower triangular of shape (n_t, n_t)
             return torch.distributions.MultivariateNormal(means, scale_tril=L)
         else: # i.e. regression with diagonal Gaussian likelihood
-            means, stds = y_t_params[:,0], 0.02+0.98*nn.functional.softplus(y_t_params[:,1])
+            means, stds = y_t_params[:,:self.y_dim], 0.001+0.999*nn.functional.softplus(y_t_params[:,self.y_dim:])
             return torch.distributions.Normal(means, stds)
 
     def loss(self, X_c, y_c, X_t, y_t, **redundant_kwargs):
             """Predictive log likelihood of targets given contexts"""
             predictive = self(X_t, X_c, y_c)
             if self.classification or not self.non_diagonal:
-                ll = predictive.log_prob(y_t.squeeze(-1)).sum()
+                ll = predictive.log_prob(y_t).sum()
             else: # i.e. if self.non_diagonal
-                ll = predictive.log_prob(y_t.squeeze(-1))
+                ll = predictive.log_prob(y_t)
 
             metrics = {
                 "ll": ll.detach().item(),
             }
                 
             return - ll, metrics
+    
+    def autoregressive_forward(self, X_t, X_c, y_c, y_t=None, num_samples=1, compute_ll=False, verbose=False, **redundant_kwargs):
+        with torch.no_grad(): # we never train under this forward pass, only predict.
+            if self.classification:
+                raise NotImplementedError("Autoregressive forward pass not implemented for classification settings.")
+            if self.non_diagonal:
+                raise NotImplementedError("Autoregressive forward pass not implemented for non-diagonal setting.")
+            n_t = X_t.shape[0]
+            noisy_samples = torch.zeros((num_samples, n_t, y_c.shape[-1]))
+            samples = torch.zeros_like(noisy_samples)
+            if compute_ll:
+                assert y_t is not None
+                ll = torch.zeros_like(noisy_samples)
+            for i in tqdm(range(num_samples), disable=not verbose): # this loop can actually be vectorised, but would need to refactor .forward().
+                for j in range(n_t):
+                    aug_X_c = torch.cat((X_c, X_t[0:j,:]), dim=0)
+                    aug_y_c = torch.cat((y_c, noisy_samples[i,0:j,:]), dim=0)
+                    marginal = self(X_t[j:j+1,:], aug_X_c, aug_y_c)
+                    if compute_ll:
+                        ll[i,j] = marginal.log_prob(y_t[j:j+1,:])
+                    noisy_samples[i,j,:] = marginal.sample()
+                aug_X_c = torch.cat((X_c, X_t), dim=0)
+                aug_y_c = torch.cat((y_c, noisy_samples[i,:,:]), dim=0)
+                samples[i,:] = self(X_t, aug_X_c, aug_y_c).mean
+            
+            if compute_ll:
+                return samples, ll.sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
+            return samples
+                
