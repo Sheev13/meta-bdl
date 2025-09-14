@@ -92,6 +92,8 @@ class BDNP(nn.Module):
         cumulative_weights_per_layer = [0] + list(accumulate(weights_per_layer))
         num_weights = cumulative_weights_per_layer[-1]
 
+        self.trainable_prior(False)
+
         if from_front:
             stop_weight = int(proportion * num_weights)
             for i, layer in enumerate(self.layers):
@@ -103,15 +105,12 @@ class BDNP(nn.Module):
                     layer.prior.partially_trainable(stop_weight - cumulative_weights_per_layer[i])
                     break
         else:
-            stop_weight = num_weights - int(proportion * num_weights)
-            for i, layer in enumerate(reversed(self.layers)):
-                if stop_weight <= cumulative_weights_per_layer[i-1]:
+            start_weight = num_weights - int(proportion * num_weights)
+            for i, layer in enumerate(self.layers):
+                if start_weight <= cumulative_weights_per_layer[i]:
                     layer.prior.trainable(True)
-                    if stop_weight == cumulative_weights_per_layer[i-1]:
-                        break
-                elif stop_weight < cumulative_weights_per_layer[i]:
-                    layer.prior.partially_trainable(cumulative_weights_per_layer[i] - stop_weight)
-                    break
+                elif start_weight < cumulative_weights_per_layer[i+1]:
+                    layer.prior.partially_trainable(cumulative_weights_per_layer[i+1] - start_weight)
         
 
     def forward(self, Xt, Xc=None, Yc=None, return_kl=False, num_samples=1, update_prev=False, save_stuff=False, batch_size=None):
