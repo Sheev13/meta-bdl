@@ -21,10 +21,6 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 
-
-
-
-
 prior_settings=11
 seeds=("21" "42" "69" "420")
 num_seeds=${#seeds[@]}

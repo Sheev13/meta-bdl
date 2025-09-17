@@ -42,6 +42,7 @@ def build_MNIST_meta_dataset(test=False):
     
 def main(
         codename=None,
+        prev_codename=None,
         architecture=[256, 256, 256],
         nonlinearity='relu',
         residual=False,
@@ -117,21 +118,24 @@ def main(
 
         md = build_MNIST_meta_dataset()
 
-        bdnp = models.BDNP(x_dim=2,
-                           y_dim=1,
-                           hidden_dims=architecture,
-                           prior_type=1,
-                           likelihood=models.BernoulliLikelihood(),
-                           residual=residual,
-                           inf_dims=architecture,
-                           use_final_layer_targets=False,
-                           inf_transformer_layers=transformer_layers,
-                           inf_transformer_width=transformer_width,
-                           pyramid_inf_net=pyramid,
-                           inf_net_use_act=use_act,
-                           scale_prior=True,
-                           nonlinearity=nl)
-        bdnp.trainable_prior(True)
+        if prev_codename is not None:
+            bdnp = torch.load(PATH + f'/saved_models/bdnp-{prev_codename}', weights_only=False)
+        else:
+            bdnp = models.BDNP(x_dim=2,
+                            y_dim=1,
+                            hidden_dims=architecture,
+                            prior_type=1,
+                            likelihood=models.BernoulliLikelihood(),
+                            residual=residual,
+                            inf_dims=architecture,
+                            use_final_layer_targets=False,
+                            inf_transformer_layers=transformer_layers,
+                            inf_transformer_width=transformer_width,
+                            pyramid_inf_net=pyramid,
+                            inf_net_use_act=use_act,
+                            scale_prior=True,
+                            nonlinearity=nl)
+            bdnp.trainable_prior(True)
 
         training_metrics = train_meta_model(
             bdnp,
@@ -173,7 +177,7 @@ def main(
         bdnp = torch.load(PATH + f'/saved_models/bdnp-{codename}', weights_only=False)
 
     X_t = test_grid([28, 28])
-    samps = 16
+    samps = 32
 
     # prior samples:
     with torch.no_grad():
@@ -222,8 +226,8 @@ def main(
             save_image(ctxt_img, PATH + f"/figs/{codename}/pngs/posterior_samples/ctxt-{p}/image-{j}/ctxt.png")
 
             with torch.no_grad():
-                posterior_samps = bdnp(X_t, X_c, Y_c, num_samples=samps, batch_size=within_task_batch_size)[0] # shape (samps, 784, 1)
-                super_posterior_samps = bdnp(fine_X_t, X_c, Y_c, num_samples=samps, batch_size=within_task_batch_size)[0] # shape (samps, 10_000, 1)
+                posterior_samps = bdnp(X_t, X_c, Y_c, num_samples=samps, batch_size=64)[0] # shape (samps, 784, 1)
+                super_posterior_samps = bdnp(fine_X_t, X_c, Y_c, num_samples=samps, batch_size=64)[0] # shape (samps, 10_000, 1)
 
             for i in range(samps):
                 pred_img = posterior_samps[i,:,:].reshape((28, 28, 1))
@@ -252,6 +256,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BDNP image completions")
     parser.add_argument('--codename', type=str, default=None, help='Codename for training run')
+    parser.add_argument('--prev_codename', type=str, default=None, help='Codename of pre-trained model from which to initialise.')
     parser.add_argument('--architecture', type=int, nargs='+', default=[256, 256, 256], help='Hidden layer dims of BDNP and inference nets')
     parser.add_argument('--nonlinearity', type=str, default='relu', help='Elementwise-acting nonlinearity')
     parser.add_argument('--residual', action='store_true', help='Is the primary BDNP network residual?')

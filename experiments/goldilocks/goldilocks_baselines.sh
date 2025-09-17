@@ -6,11 +6,11 @@
 #SBATCH --array=0-19
 
 #SBATCH --partition=gpu_p
-#SBATCH --qos=gpu_long
+#SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
 #SBATCH --constraint=a100_80gb|h100_80gb
 #SBATCH --cpus-per-task=1
-#SBATCH --time=2-12:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --nice=100
 
@@ -34,4 +34,4 @@ seed=${seeds[$seed_idx]}
 python experiments/goldilocks/goldilocks.py \
     --model $model \
     --seed $seed \
-    --use_gpu \
+    --use_gpu 

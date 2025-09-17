@@ -63,16 +63,11 @@ def main(prior=None,
     # if bdnp with fancy prior, do no training but just evaluate on tasks
     # if bdnp with bnn prior, treat it the same as other bnns
     
-    if model_name.lower() in ['bdnp', 'givi']:
-        lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True)
-    else:
-        lik = models.GaussianLikelihood(1, sigma_y=0.1)
     nl = torch.nn.ReLU()
 
     if 'bdnp' in model_name.lower():
         model_kwargs = {'x_dim': 3,
                         'y_dim': 1,
-                        'likelihood': lik,
                         'hidden_dims': hidden_dims,
                         'prior_type': 1,
                         'inf_dims': hidden_dims,
@@ -83,7 +78,6 @@ def main(prior=None,
     else:
         model_kwargs = {'x_dim': 3,
                         'y_dim': 1,
-                        'likelihood': lik,
                         'hidden_dims': hidden_dims,
                         'scale_prior': True,
                         'nonlinearity': nl}
@@ -138,6 +132,11 @@ def main(prior=None,
 
         # initialise model if not pretrained BDNP
         if not ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')):
+            if model_name.lower() in ['bdnp', 'givi']:
+                lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True)
+            else:
+                lik = models.GaussianLikelihood(1, sigma_y=0.1)
+            model_kwargs['likelihood'] = lik
             model = model_class(**model_kwargs)
             # adopt prior if using pre-trained one.
             if prior.lower() != 'bnn':
@@ -158,14 +157,15 @@ def main(prior=None,
             retain_graph = False
             if model_name.lower() == 'givi':
                 retain_graph = True
+                model.init_inducing_points(Xc)
             bdnp_minibatch_kwargs = {}
             if model_name.lower() == 'bdnp':
                 bdnp_minibatch_kwargs['bdnp_minibatch_size'] = 250
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=25_000,
-                                                       learning_rate=5e-3,
-                                                       final_learning_rate=1e-4,
+                                                       training_steps=15_000 if (model_name == 'bdnp' and j == 5) else 25_000,
+                                                       learning_rate=1e-4 if model_name == 'bdnp' else 5e-3,
+                                                       final_learning_rate=5e-5 if model_name == 'bdnp' else 5e-4,
                                                        num_samples=8,
                                                        device_agnostic=True,
                                                        retain_graph=retain_graph,
@@ -204,7 +204,7 @@ def main(prior=None,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
                 step_size = 5e-5
-                steps = 250_000
+                steps = 200_000
                 burn = 50_000
                 thin = 2_500
                 leapfrog_steps = 1
@@ -215,14 +215,14 @@ def main(prior=None,
                                                                algorithm='hmc', # LMC code is buggy, so we do HMC with 1 leapfrog step for LMC
                                                                steps=steps,
                                                                step_size=step_size,
-                                                               minibatch_size=500, # SG (HMC/LD)
+                                                               minibatch_size=128, # SG (HMC/LD)
                                                                metropolis_adjusted=False,
                                                                leapfrog_steps=leapfrog_steps)
             
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
 
-            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
+            # training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
             
             with torch.no_grad():
                 pred_yt = model.batch_forward(Xt, samples)
@@ -405,7 +405,7 @@ def main(prior=None,
     if swissless:
         results_path = PATH + f"/{model_name}/{prior}/results_swissless.json"
     else:
-        results_path = PATH + + f"/{model_name}/{prior}/results.json"
+        results_path = PATH + f"/{model_name}/{prior}/results.json"
     with open(results_path, 'w') as f:
         json.dump({k: v.tolist() for k, v in results.items()}, f, indent=4)
 

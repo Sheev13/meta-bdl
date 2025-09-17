@@ -204,7 +204,7 @@ class BDNP(nn.Module):
 
 
 
-class BDAP(nn.Module):
+class BDAM(nn.Module):
     def __init__(self,
                  x_dim: int,
                  y_dim: int,

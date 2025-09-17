@@ -5,6 +5,7 @@ from base_networks.set_architectures import DeepSet, ConvDeepSet, Transformer
 from base_networks.base_architectures import MLP
 from abc import ABC, abstractmethod
 from tqdm import tqdm
+import sys
 # from sparse_gp.likelihoods import GaussianLikelihood
 
 from typing import List, Optional
@@ -458,8 +459,9 @@ class TNP(nn.Module):
         mask[:,:n_c] = 0.0
 
         Z = self.tokeniser(Z) # shape (n_c+n_t, r_dim)
-        Z = self.transformer(Z, mask=mask) # shape (n_c+n_t, r_dim)
+        Z = self.transformer(Z.unsqueeze(0), mask=mask).squeeze(0) # shape (n_c+n_t, r_dim)
         y_t_params = self.decoder(Z[n_c:,:]) # # shape (n_t, 1) or (n_t, 2)
+        y_t_params = torch.nan_to_num(y_t_params, nan=0.0, posinf=1e8, neginf=-1e8)
 
         if self.classification:
             logits = y_t_params.squeeze()
@@ -494,19 +496,22 @@ class TNP(nn.Module):
             if self.non_diagonal:
                 raise NotImplementedError("Autoregressive forward pass not implemented for non-diagonal setting.")
             n_t = X_t.shape[0]
-            noisy_samples = torch.zeros((num_samples, n_t, y_c.shape[-1]))
+            device = y_c.device
+            dtype = y_c.dtype
+            noisy_samples = torch.zeros((num_samples, n_t, y_c.shape[-1]), device=device, dtype=dtype)
             samples = torch.zeros_like(noisy_samples)
             if compute_ll:
                 assert y_t is not None
-                ll = torch.zeros_like(noisy_samples)
-            for i in tqdm(range(num_samples), disable=not verbose): # this loop can actually be vectorised, but would need to refactor .forward().
+                ll = torch.zeros_like(noisy_samples)   # log-probs stored on same device/dtype
+            for i in tqdm(range(num_samples), disable=not verbose, file=sys.stdout): # this loop can actually be vectorised, but would need to refactor .forward().
                 for j in range(n_t):
                     aug_X_c = torch.cat((X_c, X_t[0:j,:]), dim=0)
                     aug_y_c = torch.cat((y_c, noisy_samples[i,0:j,:]), dim=0)
                     marginal = self(X_t[j:j+1,:], aug_X_c, aug_y_c)
                     if compute_ll:
-                        ll[i,j] = marginal.log_prob(y_t[j:j+1,:])
+                        ll[i,j] = marginal.log_prob(y_t[j:j+1,:]).detach()
                     noisy_samples[i,j,:] = marginal.sample()
+                
                 aug_X_c = torch.cat((X_c, X_t), dim=0)
                 aug_y_c = torch.cat((y_c, noisy_samples[i,:,:]), dim=0)
                 samples[i,:] = self(X_t, aug_X_c, aug_y_c).mean

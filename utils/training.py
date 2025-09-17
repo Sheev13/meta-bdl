@@ -60,6 +60,8 @@ def train_meta_model(
         else:
             device = torch.device('cpu')
 
+    dtp = torch.get_default_dtype()
+
     # move dataset into torch dataloader
     if dataset_on_cpu:
         with torch.device("cpu"):
@@ -145,6 +147,9 @@ def train_meta_model(
             if X.device != device: # e.g. this happens when dataset_on_cpu is True
                 X = X.to(device)
                 y = y.to(device)
+            if X.dtype != dtp:
+                X = X.to(dtype=dtp)
+                y = y.to(dtype=dtp)
 
             X, y = X.squeeze(0), y.squeeze(0).to(device)
             if task_subsample_fraction is not None:

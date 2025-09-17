@@ -3,14 +3,14 @@
 #SBATCH --job-name=era5_transfer
 #SBATCH --output=experiments/era5_prior_transfer/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/era5_prior_transfer/slurm_logs/%A_%a.err
-#SBATCH --array=2
+#SBATCH --array=9
 
 #SBATCH --partition=gpu_p
-#SBATCH --qos=gpu_long
+#SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
-#SBATCH --constraint=a100_80gb|h100_80gb
+#SBATCH --constraint=h100_80gb
 #SBATCH --cpus-per-task=1
-#SBATCH --time=2-12:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --nice=100
 
@@ -21,7 +21,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 models=("mfvi" "givi" "bdnp" "lmc" "hmc" "swag")
-priors=("bnn" "aardvark")
+priors=("bnn" "echidna")
 
 num_models=${#models[@]}
 model_idx=$(( SLURM_ARRAY_TASK_ID % num_models ))
@@ -34,4 +34,5 @@ prior=${priors[$prior_idx]}
 python experiments/era5_prior_transfer/transfer_prior.py \
     --prior $prior \
     --model_name $model \
+    --swissless \
     --use_gpu \

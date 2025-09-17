@@ -1,0 +1,11 @@
+{
+    "prior": "echidna",
+    "model_name": "hmc",
+    "hidden_dims": [
+        64,
+        64,
+        64
+    ],
+    "swissless": true,
+    "use_gpu": true
+}

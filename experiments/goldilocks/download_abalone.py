@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 import sys
 from pathlib import Path
@@ -8,6 +9,72 @@ import argparse
 import json
 from ucimlrepo import fetch_ucirepo 
 from utils.data_utils import ctxt_trgt_split
+
+
+def cube_split(X, y, target_fraction=0.75, cube_fraction_range=(0.15, 0.25)):
+    """
+    Splits dataset into context and target sets:
+      - Picks cube size so that ~cube_fraction_range of points are inside.
+      - All cube points go into target set.
+      - Randomly sample from outside points so that target set is ~target_fraction.
+    """
+
+    N, D = X.shape
+
+    # === Step 1: determine cube size ===
+    absX = X.cpu().abs().numpy()  # symmetric cube around origin
+    max_vals = absX.max(axis=0)
+
+    # binary search cube half-width so that fraction in cube is within range
+    lo, hi = 0.0, max(max_vals)
+    best_width, best_frac = None, None
+    for _ in range(50):  # binary search iterations
+        mid = (lo + hi) / 2
+        in_cube = (absX <= mid).all(axis=1)
+        frac = in_cube.mean()
+        if cube_fraction_range[0] <= frac <= cube_fraction_range[1]:
+            best_width, best_frac = mid, frac
+            break
+        if frac < cube_fraction_range[0]:
+            lo = mid
+        else:
+            hi = mid
+    if best_width is None:  # fallback: pick closest
+        mid = (lo + hi) / 2
+        in_cube = (absX <= mid).all(axis=1)
+        best_width, best_frac = mid, in_cube.mean()
+
+    # final cube membership
+    in_cube = (absX <= best_width).all(axis=1)
+
+    # === Step 2: allocate target points ===
+    idx_in_cube = np.where(in_cube)[0]
+    idx_out_cube = np.where(~in_cube)[0]
+
+    n_target_total = int(target_fraction * N)
+    n_inside = len(idx_in_cube)
+    n_needed_from_outside = n_target_total - n_inside
+
+    if n_needed_from_outside < 0:
+        raise ValueError("Cube fraction is too large relative to target_fraction.")
+
+    idx_outside_sampled = np.random.choice(idx_out_cube, size=n_needed_from_outside, replace=False)
+
+    target_idx = np.concatenate([idx_in_cube, idx_outside_sampled])
+    ctxt_idx = np.setdiff1d(np.arange(N), target_idx)
+
+    # === Step 3: create tensors ===
+    ctxt = (X[ctxt_idx], y[ctxt_idx])
+    trgt = (X[target_idx], y[target_idx])
+
+    return (*ctxt, *trgt), {
+        "cube_halfwidth": best_width,
+        "cube_frac": best_frac,
+        "target_frac": len(target_idx) / N,
+        "inside_count": len(idx_in_cube),
+        "outside_count_sampled": len(idx_outside_sampled),
+        "outside_ctxt_proportion": 1 - (len(idx_outside_sampled) / (X.shape[0] - len(idx_in_cube)))
+    }
 
 
 def main():
@@ -67,14 +134,15 @@ def main():
     metadata['num_male'] = X_m.shape[0]
     metadata['num_female'] = X_f.shape[0]
     metadata['num_infant'] = X_i.shape[0]
-    with open(PATH + "/data/abalone/metadata.json", 'w') as f:
-        json.dump(metadata, f, indent=4)
 
     train_sets = [(X_m, y_m), (X_f, y_f)]
     torch.save(train_sets, PATH + "/data/abalone/train_sets.pt")
 
-    test_set = ctxt_trgt_split(X_i, y_i, ctxt_proportion=0.25)
+    test_set, split_metadata = cube_split(X_i, y_i, target_fraction=0.75, cube_fraction_range=(0.15, 0.25))
     torch.save(test_set, PATH + "/data/abalone/test_set.pt")
+
+    with open(PATH + "/data/abalone/metadata.json", 'w') as f:
+        json.dump({**metadata, **split_metadata}, f, indent=4)
 
 if __name__ == "__main__":
     main()

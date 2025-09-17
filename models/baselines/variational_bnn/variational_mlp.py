@@ -75,7 +75,7 @@ class BaseGaussianVIBNN(nn.Module, ABC):
             "kl": kl.detach().item()
         }
 
-        if self.x_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
+        if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
 
@@ -240,7 +240,7 @@ class FCVIBNN(nn.Module): # doesn't use above base class because too different. 
             "kl": kl.detach().item()
         }
 
-        if self.x_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
+        if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
 

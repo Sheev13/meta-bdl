@@ -19,7 +19,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 models=("mfvi" "givi" "bdnp" "lmc" "hmc" "swag")
-priors=("bnn" "aardvark")
+priors=("bnn" "echidna")
 
 num_models=${#models[@]}
 model_idx=$(( SLURM_ARRAY_TASK_ID % num_models ))

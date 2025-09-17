@@ -6,6 +6,6 @@
         64,
         64
     ],
-    "swissless": false,
-    "use_gpu": false
+    "swissless": true,
+    "use_gpu": true
 }

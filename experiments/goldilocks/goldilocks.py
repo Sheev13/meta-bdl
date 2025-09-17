@@ -10,6 +10,7 @@ import json
 import models
 from models import baselines
 from utils.training import train_meta_model, train_variational_model
+from base_networks.base_architectures import Sin
 
 
 def main(model: str = None,
@@ -50,7 +51,12 @@ def main(model: str = None,
         device = torch.device('cpu')
         print("Using CPU")
     torch.set_default_device(device)
-    torch.set_default_dtype(torch.float64)
+
+    if model == 'ar-tnp':
+        dtp = torch.float32
+    else:
+        dtp = torch.float64
+    torch.set_default_dtype(dtp)
 
     model_codename = model
     if model == 'bdnp':
@@ -69,6 +75,7 @@ def main(model: str = None,
     # define model classes, model kwargs, training funcs, training kwargs, seed
 
     nl = torch.nn.SiLU()
+    # nl = Sin()
     architecture = [64, 64, 64]
 
     with open(PATH +f"/data/{dataset}/metadata.json") as f:
@@ -91,7 +98,7 @@ def main(model: str = None,
             if prior_trainability == 1.0:
                 m.trainable_prior(True)
             else:
-                m.set_prior_trainability(prior_trainability, from_front=False)
+                m.set_prior_trainability(prior_trainability, from_front=True)
 
         training_kwargs = {'training_steps': 50_000,
                            'batch_size': 5,
@@ -119,7 +126,7 @@ def main(model: str = None,
         elif model == 'givi':
             m = baselines.GIVIBNN(**model_kwargs)
 
-        training_kwargs = {'training_steps': 25_000,
+        training_kwargs = {'training_steps': 25_000 if model == 'givi' else 75_000,
                             'learning_rate': 5e-3,
                             'final_learning_rate': 1e-4,
                             'num_samples': 8,
@@ -146,13 +153,15 @@ def main(model: str = None,
         elif model == 'ar-tnp':
             model_kwargs = {'x_dim': x_dim,
                             'y_dim': 1,
-                            'num_layers': len(architecture),
-                            'r_dim': max(architecture),
+                            # 'num_layers': len(architecture),
+                            # 'r_dim': max(architecture),
+                            'num_layers': 3,
+                            'r_dim': 256,
                             'nonlinearity': nl}
             training_kwargs = {'training_steps': 50_000,
                                'batch_size': 5,
-                               'learning_rate': 1e-3,
-                               'final_learning_rate': 5e-5,
+                               'learning_rate': 1e-4,
+                               'final_learning_rate': 1e-5,
                                'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
                                'ctxt_proportion_range': (0.1, 0.5),
                                'task_subsample_fraction': None,
@@ -167,16 +176,15 @@ def main(model: str = None,
         
     
     ############# Model is now defined. Time to train the thing. ##############
-
     torch.manual_seed(seed)
     if use_gpu:
         torch.cuda.manual_seed(seed)
 
     Xc_raw, yc_raw, Xt_raw, yt_raw = torch.load(PATH + f"/data/{dataset}/test_set.pt")
-    Xc = Xc_raw.to(device=device, dtype=torch.float64)
-    yc = yc_raw.to(device=device, dtype=torch.float64)
-    Xt = Xt_raw.to(device=device, dtype=torch.float64)
-    yt = yt_raw.to(device=device, dtype=torch.float64)
+    Xc = Xc_raw.to(device=device, dtype=dtp)
+    yc = yc_raw.to(device=device, dtype=dtp)
+    Xt = Xt_raw.to(device=device, dtype=dtp)
+    yt = yt_raw.to(device=device, dtype=dtp)
     num_predict_samps = 1000
 
     if model == 'bdnp' or model_type == 'np':
@@ -184,12 +192,12 @@ def main(model: str = None,
         training_metrics = train_meta_model(m, md, **training_kwargs)
         with torch.no_grad():
             if model == 'bdnp':
-                pred_yt = model(Xt, Xc, yc, num_samples=num_predict_samps, batch_size=50)[0]
+                pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps, batch_size=50)[0]
             elif model in ['np', 'bnp']:
-                pred_yt = model(Xt, Xc, yc, num_samples=num_predict_samps)
+                pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps)
             elif model == 'ar-tnp':
                 print("executing autoregressive TNP forward pass...")
-                pred_yt, ll = model.autoregressive_forward(Xt,
+                pred_yt, ll = m.autoregressive_forward(Xt,
                                                            Xc,
                                                            yc,
                                                            yt,
@@ -201,14 +209,18 @@ def main(model: str = None,
     elif model_type == 'bnn':
         training_metrics = train_variational_model(m, (Xc, yc), **training_kwargs)
         with torch.no_grad():
-            pred_yt = model(Xt, num_samples=num_predict_samps)
+            pred_yt = m(Xt, num_samples=num_predict_samps)
 
     fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
     for i, (key, value) in enumerate(training_metrics.items()):
         omitted_steps = 250
-        axes[i].plot(value[omitted_steps:])
-        axes[i].set_xlabel(key)
-        axes[i].grid()
+        if len(training_metrics) == 1:
+            a = axes
+        else:
+            a = axes[i]
+        a.plot(value[omitted_steps:])
+        a.set_xlabel(key)
+        a.grid()
     plt.savefig(PATH + f"/figs/training/{model_codename}/pdfs/training_{seed}.pdf", bbox_inches="tight")
     plt.savefig(PATH + f"/figs/training/{model_codename}/pngs/training_{seed}.png", bbox_inches="tight")
     plt.close()
@@ -221,13 +233,13 @@ def main(model: str = None,
     if model != 'ar-tnp':
         results['ppd'] = (m.likelihood.log_prob(pred_yt, yt).sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps * yt.shape[0]).log()).item()
     else:
-        results['ppd'] = (ll.sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps + yt.shape[0]).log()).item()
+        results['ppd'] = (ll.sum(-1).logsumexp((0, 1)) - torch.tensor(num_predict_samps * yt.shape[0]).log()).item()
     # normalise data for MAE and plotting:
     norm_consts = torch.load(PATH + f"/data/{dataset}/norm_consts.pt", weights_only=False)
     y_mean = norm_consts['y_mean']
     y_std = norm_consts['y_std']
-    y_mean = y_mean.to(device=device, dtype=torch.float64)
-    y_std = y_std.to(device=device, dtype=torch.float64)
+    y_mean = y_mean.to(device=device, dtype=dtp)
+    y_std = y_std.to(device=device, dtype=dtp)
     pred_yt = pred_yt * y_std + y_mean
     yt = yt * y_std + y_mean
 

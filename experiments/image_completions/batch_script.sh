@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
-#SBATCH --constraint=a100_80gb|h100_80gb
+#SBATCH --constraint=h100_80gb
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:1
@@ -21,11 +21,12 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/image_completions/image_completions.py \
-    --codename japan \
-    --architecture 64 64 64 \
-    --training_steps 200_000 \
+    --codename liechtenstein \
+    --prev_codename kenya \
+    --architecture 64 64 64 64 \
+    --training_steps 250_000 \
     --num_samples 16 \
-    --ctxt_proportion_range 0.01 0.75 \
-    --learning_rate 1e-3 \
-    --final_learning_rate 1e-5 \
+    --ctxt_proportion_range 0.01 0.6 \
+    --learning_rate 1e-5 \
+    --final_learning_rate 1e-6 \
     --use_gpu
