@@ -183,7 +183,7 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 5e-5
+                step_size = 1e-4
                 steps = 5_000
                 burn = 2_000
                 thin = 50
@@ -203,7 +203,7 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 5e-5
+                step_size = 1e-4
                 steps = 200_000
                 burn = 50_000
                 thin = 2_500
@@ -222,7 +222,8 @@ def main(prior=None,
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
 
-            # training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
+            # below is nice but always makes cuda run out of memory :/
+            # training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)       
             
             with torch.no_grad():
                 pred_yt = model.batch_forward(Xt, samples)
