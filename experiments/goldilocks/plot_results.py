@@ -50,7 +50,7 @@ def compute_stats(values):
     return mean, sem
 
 
-def main(dataset='abalone', exclude_bnns=False):
+def main(dataset='paul15', exclude_bnns=False):
     PATH = str(Path(__file__).resolve().parent)
     Path(PATH + "/figs/results").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/results/{dataset}").mkdir(parents=True, exist_ok=True)
@@ -63,8 +63,8 @@ def main(dataset='abalone', exclude_bnns=False):
     bdnp_folders_sorted = sorted(bdnp_folders, key=lambda x: float(x.split("_")[1]))
     model_order = bdnp_folders_sorted + ["np", "bnp", "ar-tnp"]
     if not exclude_bnns:
-        # model_order = ["mfvi", "givi"] + model_order
-        model_order = ["givi"] + model_order
+        model_order = ["mfvi", "givi"] + model_order
+        # model_order = ["givi"] + model_order
 
     metrics_data = {"ppd": [], "mae": []}
     colours = []

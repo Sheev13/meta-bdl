@@ -57,6 +57,7 @@ def main(codename=None,
          learning_rate=5e-3,
          final_learning_rate=5e-5,
          use_gpu=False,
+         bnn_prior=False,
          use_pretrained=False,
         ):
     args_dict = locals()
@@ -100,7 +101,8 @@ def main(codename=None,
             architecture=architecture,
             nonlinearity=nonlinearity,
         )
-        bdnp.trainable_prior(True)
+        if not bnn_prior:
+            bdnp.trainable_prior(True)
 
         ######## visualise prior predictive samples with standard guff prior ########
         for i in range(10):
@@ -199,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', type=float, default=5e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one available. Default False.')
+    parser.add_argument('--bnn_prior', action='store_true', help='Whether to fix prior to BNN standard one. Default False.')
     parser.add_argument('--use_pretrained', action='store_true', help='Use a pretrained BDNP with matching codename. Default False.')
 
     args = parser.parse_args()

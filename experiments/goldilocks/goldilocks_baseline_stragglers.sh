@@ -3,7 +3,7 @@
 #SBATCH --job-name=goldilocks
 #SBATCH --output=experiments/goldilocks/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/goldilocks/slurm_logs/%A_%a.err
-#SBATCH --array=4,9,14,19
+#SBATCH --array=2
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
@@ -33,5 +33,6 @@ seed=${seeds[$seed_idx]}
 # Run your script with arguments
 python experiments/goldilocks/goldilocks.py \
     --model $model \
+    --dataset paul15 \
     --seed $seed \
     --use_gpu \

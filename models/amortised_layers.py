@@ -102,6 +102,7 @@ class AmortisedLinearLayer(nn.Module):
                             return_kl=False,
                             num_samples=1,
                             batch_size=50,
+                            grad_batch_idx=None,
                         ):
         """an implementation of the minibatched forward pass. Only implemented for most common usage configuration of BDNP."""
         if Xc is None or Yc is None or Xc_prev_l is None:
@@ -111,12 +112,10 @@ class AmortisedLinearLayer(nn.Module):
         
         # main minibatching loop here:
         num_batches = (Xc.shape[0] + batch_size - 1) // batch_size
-        grad_batch_idx = torch.randperm(num_batches)[0].item()
         q_w = self.prior()
         global_grad_enabled = torch.is_grad_enabled()
         for b in range(num_batches):
             with torch.set_grad_enabled(global_grad_enabled and b == grad_batch_idx):
-
                 start = b * batch_size
                 end = min(start + batch_size, Xc.shape[0])
                 Xc_b = Xc[start:end,:] # shape (batch_size, x_dim)

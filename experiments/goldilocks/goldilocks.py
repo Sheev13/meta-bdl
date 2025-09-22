@@ -19,7 +19,7 @@ def main(model: str = None,
          seed: int = None,
          use_gpu: bool = False):
 
-    print("model: ", model, " seed: ", seed, "prior trainability: ", prior_trainability)
+    print("model: ", model, " seed: ", seed, "prior trainability: ", prior_trainability, "dataset: ", dataset)
 
     model = model.lower()
     assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp'] # no conv(c/g)np since there are 7 > 3 input dims.
@@ -52,10 +52,7 @@ def main(model: str = None,
         print("Using CPU")
     torch.set_default_device(device)
 
-    if model == 'ar-tnp':
-        dtp = torch.float32
-    else:
-        dtp = torch.float64
+    dtp = torch.float64
     torch.set_default_dtype(dtp)
 
     model_codename = model
@@ -65,9 +62,10 @@ def main(model: str = None,
     PATH = str(Path(__file__).resolve().parent)
     Path(PATH + f"/figs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/training").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/training/{model_codename}").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/training/{model_codename}/pdfs").mkdir(parents=True, exist_ok=True)
-    Path(PATH + f"/figs/training/{model_codename}/pngs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{dataset}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{dataset}/{model_codename}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{dataset}/{model_codename}/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/training/{dataset}/{model_codename}/pngs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results/{dataset}").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/results/{dataset}/{model_codename}").mkdir(parents=True, exist_ok=True)
@@ -76,7 +74,10 @@ def main(model: str = None,
 
     nl = torch.nn.SiLU()
     # nl = Sin()
-    architecture = [64, 64, 64]
+    if dataset == 'abalone':
+        architecture = [64, 64, 64]
+    else: 
+        architecture = [96, 96, 96, 96]
 
     with open(PATH +f"/data/{dataset}/metadata.json") as f:
         dataset_metadata = json.load(f)
@@ -85,7 +86,7 @@ def main(model: str = None,
     if model == 'bdnp':
         model_kwargs = {'x_dim': x_dim,
                         'y_dim': 1,
-                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.1, train=True),
+                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.5 if dataset == 'paul15' else 0.1, train=True),
                         'hidden_dims': architecture,
                         'prior_type': 1,
                         'inf_dims': architecture,
@@ -100,50 +101,56 @@ def main(model: str = None,
             else:
                 m.set_prior_trainability(prior_trainability, from_front=True)
 
-        training_kwargs = {'training_steps': 50_000,
+        training_kwargs = {'training_steps': 75_000,
                            'batch_size': 5,
-                           'learning_rate': 1e-3,
+                           'learning_rate': 1e-4,
                            'final_learning_rate': 5e-5,
                            'num_samples': 16,
                            'loss_function': 'pp-avi',
                            'ctxt_proportion_range': (0.1, 0.5),
-                           'task_subsample_fraction': None,
-                           'within_task_batch_size': 250,
+                           'task_subsample_fraction': 0.5 if dataset == 'qm8' else None,
+                           'within_task_batch_size': 512 if dataset == 'qm8' else None,
                            'device_agnostic': True}
 
     elif model_type == 'bnn':
         model_kwargs = {'x_dim': x_dim,
                         'y_dim': 1,
-                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.1, train=True if model=='givi' else False),
+                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.75 if dataset=='paul15' else 0.1, train=True if model=='givi' else False),
                         'hidden_dims': architecture,
                         'scale_prior': True,
                         'nonlinearity': nl}
         if model == 'givi':
-            model_kwargs['num_inducing'] = 128
+            if dataset == 'abalone':
+                n_ind = 128 
+            elif dataset == 'paul15':
+                n_ind =  192
+            elif dataset == 'qm8':
+                n_ind = 256
+            model_kwargs['num_inducing'] = n_ind
         
         if model == 'mfvi':
             m = baselines.MFVIBNN(**model_kwargs)
         elif model == 'givi':
             m = baselines.GIVIBNN(**model_kwargs)
 
-        training_kwargs = {'training_steps': 25_000 if model == 'givi' else 75_000,
+        training_kwargs = {'training_steps': 50_000 if model == 'givi' else 75_000,
                             'learning_rate': 5e-3,
                             'final_learning_rate': 1e-4,
                             'num_samples': 8,
                             'device_agnostic': True,
                             'retain_graph': model=='givi'}
-            
+
     elif model_type == 'np':
         if model in ['np', 'bnp']:
             model_kwargs = {'x_dim': x_dim,
                             'y_dim': 1,
-                            'lik': models.GaussianLikelihood(1, sigma_y=0.1, train=False), # should we train this?
+                            'lik': models.GaussianLikelihood(1, sigma_y=0.1, train=True), # should we train this?
                             'encoder_dims': [256, 256, 256], # aything less and these NPs are just crap.
                             'decoder_dims': [256, 256, 256],
                             'nonlinearity': nl}
             training_kwargs = {'training_steps': 500_000,
                                'batch_size': 5,
-                               'learning_rate': 5e-4,
+                               'learning_rate': 1e-4,
                                'final_learning_rate': 1e-5,
                                'num_samples': 16, # ignored for conditional family of NPs
                                'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
@@ -153,18 +160,16 @@ def main(model: str = None,
         elif model == 'ar-tnp':
             model_kwargs = {'x_dim': x_dim,
                             'y_dim': 1,
-                            # 'num_layers': len(architecture),
-                            # 'r_dim': max(architecture),
                             'num_layers': 3,
                             'r_dim': 256,
                             'nonlinearity': nl}
             training_kwargs = {'training_steps': 50_000,
                                'batch_size': 5,
-                               'learning_rate': 1e-4,
+                               'learning_rate': 5e-5,
                                'final_learning_rate': 1e-5,
                                'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
                                'ctxt_proportion_range': (0.1, 0.5),
-                               'task_subsample_fraction': None,
+                               'task_subsample_fraction': 0.25 if dataset == 'qm8' else None,
                                'device_agnostic': True}
         
         if model == 'np':
@@ -180,7 +185,12 @@ def main(model: str = None,
     if use_gpu:
         torch.cuda.manual_seed(seed)
 
-    Xc_raw, yc_raw, Xt_raw, yt_raw = torch.load(PATH + f"/data/{dataset}/test_set.pt")
+    if dataset == 'abalone':
+        Xc_raw, yc_raw, Xt_raw, yt_raw = torch.load(PATH + f"/data/abalone/test_set.pt")
+    elif dataset == 'qm8':
+        Xc_raw, yc_raw, Xt_raw, yt_raw = torch.load(PATH + f"/data/qm8/test_sets.pt")[0]
+    elif dataset == 'paul15':
+        Xc_raw, yc_raw, Xt_raw, yt_raw = torch.load(PATH + f"/data/paul15/test_sets.pt")[-4] # this one has 329 datapoints total
     Xc = Xc_raw.to(device=device, dtype=dtp)
     yc = yc_raw.to(device=device, dtype=dtp)
     Xt = Xt_raw.to(device=device, dtype=dtp)
@@ -198,18 +208,24 @@ def main(model: str = None,
             elif model == 'ar-tnp':
                 print("executing autoregressive TNP forward pass...")
                 pred_yt, ll = m.autoregressive_forward(Xt,
-                                                           Xc,
-                                                           yc,
-                                                           yt,
-                                                           num_samples=num_predict_samps,
-                                                           compute_ll=True,
-                                                           verbose=True)
+                                                       Xc,
+                                                       yc,
+                                                       yt,
+                                                       num_samples=num_predict_samps,
+                                                       compute_ll=True,
+                                                       verbose=True)
                 print("All done my boy.")
 
     elif model_type == 'bnn':
         training_metrics = train_variational_model(m, (Xc, yc), **training_kwargs)
-        with torch.no_grad():
-            pred_yt = m(Xt, num_samples=num_predict_samps)
+        if model == 'givi': # circumvent memory limitations due to large number of inducing points
+            pred_yt = torch.zeros((1000, Xt.shape[0], 1))
+            for p in range(10):
+                with torch.no_grad():
+                    pred_yt[p*100:(p+1)*100,:,:] = m(Xt, num_samples=100)
+        else:
+            with torch.no_grad():
+                pred_yt = m(Xt, num_samples=num_predict_samps)
 
     fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
     for i, (key, value) in enumerate(training_metrics.items()):
@@ -221,8 +237,8 @@ def main(model: str = None,
         a.plot(value[omitted_steps:])
         a.set_xlabel(key)
         a.grid()
-    plt.savefig(PATH + f"/figs/training/{model_codename}/pdfs/training_{seed}.pdf", bbox_inches="tight")
-    plt.savefig(PATH + f"/figs/training/{model_codename}/pngs/training_{seed}.png", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/training/{dataset}/{model_codename}/pdfs/training_{seed}.pdf", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/training/{dataset}/{model_codename}/pngs/training_{seed}.png", bbox_inches="tight")
     plt.close()
 
 

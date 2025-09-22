@@ -128,6 +128,15 @@ class BDNP(nn.Module):
             if batch_size is not None:
                 assert self.prior_type in [0, 1]
                 assert self.use_final_layer_noise == False
+                assert Xc is not None
+                if torch.is_grad_enabled(): # if we are training
+                    if batch_size >= Xc.shape[0]:
+                        grad_batch_idx = 0
+                    else:
+                        num_batches = -(-Xc.shape[0] // batch_size)  # works for integers, same as math.ceil(a / b)
+                        grad_batch_idx = torch.randint(0, num_batches, (1,)).item()
+                else:
+                    grad_batch_idx = None
                 outputs = layer.minibatched_forward(Xt_prev,
                                                     Xc_prev,
                                                     Xc,
@@ -135,6 +144,7 @@ class BDNP(nn.Module):
                                                     return_kl=return_kl,
                                                     num_samples=num_samples,
                                                     batch_size=batch_size,
+                                                    grad_batch_idx=grad_batch_idx
                                                    )
             else:
                 lcp = None

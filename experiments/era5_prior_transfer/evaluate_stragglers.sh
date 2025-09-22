@@ -3,7 +3,7 @@
 #SBATCH --job-name=era5_transfer
 #SBATCH --output=experiments/era5_prior_transfer/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/era5_prior_transfer/slurm_logs/%A_%a.err
-#SBATCH --array=3,4,9,10
+#SBATCH --array=2
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal

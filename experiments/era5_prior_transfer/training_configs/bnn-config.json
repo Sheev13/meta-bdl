@@ -1,0 +1,15 @@
+{
+    "codename": "bnn",
+    "architecture": [
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "relu",
+    "training_steps": 50000,
+    "learning_rate": 0.001,
+    "final_learning_rate": 1e-05,
+    "use_gpu": true,
+    "bnn_prior": true,
+    "use_pretrained": false
+}

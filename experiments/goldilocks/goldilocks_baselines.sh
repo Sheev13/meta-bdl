@@ -33,5 +33,6 @@ seed=${seeds[$seed_idx]}
 # Run your script with arguments
 python experiments/goldilocks/goldilocks.py \
     --model $model \
+    --dataset paul15 \
     --seed $seed \
     --use_gpu 

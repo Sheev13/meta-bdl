@@ -65,33 +65,20 @@ def main(prior=None,
     
     nl = torch.nn.ReLU()
 
-    if 'bdnp' in model_name.lower():
-        model_kwargs = {'x_dim': 3,
-                        'y_dim': 1,
-                        'hidden_dims': hidden_dims,
-                        'prior_type': 1,
-                        'inf_dims': hidden_dims,
-                        'use_final_layer_targets': True,
-                        'use_final_layer_noise': False,
-                        'scale_prior': True,
-                        'nonlinearity': nl}
-    else:
-        model_kwargs = {'x_dim': 3,
-                        'y_dim': 1,
-                        'hidden_dims': hidden_dims,
-                        'scale_prior': True,
-                        'nonlinearity': nl}
-        if model_name.lower() == 'givi':
-            model_kwargs['num_inducing'] = 128
-        elif model_name.lower() == 'swag':
-            model_kwargs['K'] = 64
+    model_kwargs = {'x_dim': 3,
+                    'y_dim': 1,
+                    'hidden_dims': hidden_dims,
+                    'scale_prior': True,
+                    'nonlinearity': nl}
+    if model_name.lower() == 'givi':
+        model_kwargs['num_inducing'] = 128
+    elif model_name.lower() == 'swag':
+        model_kwargs['K'] = 64
     
     if model_name == 'mfvi':
         model_class = baselines.MFVIBNN
     elif model_name == 'givi':
         model_class = baselines.GIVIBNN
-    elif model_name == 'bdnp':
-        model_class = models.BDNP
     elif model_name == 'hmc':
         model_class = baselines.HMC_BNN
     elif model_name == 'lmc':
@@ -99,7 +86,7 @@ def main(prior=None,
     elif model_name == 'swag':
         model_class = baselines.SWAG_BNN
 
-    if (model_name.lower() == 'bdnp') and (prior.lower() != 'bnn'):
+    if model_name.lower() == 'bdnp':
         model = torch.load(PATH + f'/saved_models/{prior}', weights_only=False)
 
 
@@ -131,11 +118,8 @@ def main(prior=None,
             Path(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}").mkdir(parents=True, exist_ok=True)
 
         # initialise model if not pretrained BDNP
-        if not ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')):
-            if model_name.lower() in ['bdnp', 'givi']:
-                lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True)
-            else:
-                lik = models.GaussianLikelihood(1, sigma_y=0.1)
+        if model_name.lower() != 'bdnp':
+            lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True if model_name.lower() == 'givi' else False)
             model_kwargs['likelihood'] = lik
             model = model_class(**model_kwargs)
             # adopt prior if using pre-trained one.
@@ -153,19 +137,17 @@ def main(prior=None,
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
 
-        if model_name.lower() in ['mfvi', 'givi'] or ((model_name.lower() == 'bdnp') and (prior.lower() == 'bnn')):
+        if model_name.lower() in ['mfvi', 'givi']:
             retain_graph = False
             if model_name.lower() == 'givi':
                 retain_graph = True
                 model.init_inducing_points(Xc)
             bdnp_minibatch_kwargs = {}
-            if model_name.lower() == 'bdnp':
-                bdnp_minibatch_kwargs['bdnp_minibatch_size'] = 250
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=15_000 if (model_name == 'bdnp' and j == 5) else 25_000,
-                                                       learning_rate=1e-4 if model_name == 'bdnp' else 5e-3,
-                                                       final_learning_rate=5e-5 if model_name == 'bdnp' else 5e-4,
+                                                       training_steps=25_000,
+                                                       learning_rate=5e-3,
+                                                       final_learning_rate=5e-4,
                                                        num_samples=8,
                                                        device_agnostic=True,
                                                        retain_graph=retain_graph,
@@ -173,12 +155,8 @@ def main(prior=None,
 
             num_samples = 1000
             with torch.no_grad():
-                if model_name.lower() == 'bdnp':
-                    pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=250)[0]
-                    pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=250)[0]
-                else:
-                    pred_samps = model(xs, num_samples=100)
-                    pred_yt = model(Xt, num_samples=num_samples)
+                pred_samps = model(xs, num_samples=100)
+                pred_yt = model(Xt, num_samples=num_samples)
 
 
         elif model_name.lower() in ['lmc', 'hmc']:
@@ -242,7 +220,7 @@ def main(prior=None,
 
 
         ## handle pre-trained bdnp ##
-        if model_name.lower() == 'bdnp' and prior != 'bnn':
+        if model_name.lower() == 'bdnp':
             num_samples = 1000
             with torch.no_grad():
                 pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]

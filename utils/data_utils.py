@@ -52,6 +52,16 @@ def ctxt_trgt_split(X: torch.Tensor, y: torch.Tensor, ctxt_proportion_range: Opt
     elif X_t.shape[0] == 0:
         X_t, y_t = X_c[0], y_c[0]
 
+    x_dim, y_dim = X.shape[-1], y.shape[-1]
+    if len(X_c.shape) == 1 and X_c.shape[0] == x_dim:
+        X_c = X_c.unsqueeze(0)
+    if len(y_c.shape) == 1 and y_c.shape[0] == y_dim:
+        y_c = y_c.unsqueeze(0)
+    if len(X_t.shape) == 1 and X_t.shape[0] == x_dim:
+        X_t = X_t.unsqueeze(0)
+    if len(y_t.shape) == 1 and y_t.shape[0] == y_dim:
+        y_t = y_t.unsqueeze(0)
+
     return (X_c, y_c, X_t, y_t)
 
 

@@ -21,10 +21,11 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/era5_prior_transfer/learn_prior.py \
-    --codename echidna \
+    --codename bnn \
     --architecture 64 64 64 \
     --nonlinearity relu \
-    --training_steps 200_000 \
+    --training_steps 50_000 \
     --learning_rate 1e-3 \
     --final_learning_rate 1e-5 \
+    --bnn_prior \
     --use_gpu

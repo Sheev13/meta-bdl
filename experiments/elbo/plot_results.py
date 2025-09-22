@@ -51,7 +51,7 @@ def main():
                           "ucvi": "ucvi_final"
                           }
 
-    fig, axes = plt.subplots(1, 1, figsize=(10.5, 3))
+    fig, axes = plt.subplots(1, 1, figsize=(7, 2))
     marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
     colours = get_colours()
     axes.grid(alpha=0.5)
@@ -80,7 +80,7 @@ def main():
         axes.plot(x, y_means.tolist(), color=c)
         axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
         axes.set_xlabel(r'$\sigma_y$')
-        axes.set_ylabel('ELBO/LML')
+        # axes.set_ylabel('ELBO/LML')
         axes.set_xscale('log')
         axes.set_ylim([-80, 20])
         axes.set_xlim([max(0.01, x_lim), 10.0])
@@ -89,7 +89,7 @@ def main():
     axes.spines['right'].set_alpha(0.5)
     axes.spines['bottom'].set_alpha(0.5)
     axes.spines['left'].set_alpha(0.5)
-    axes.legend(ncol=4)
+    # axes.legend(ncol=2)
 
     plt.savefig(PATH + f"/figs/results/elbo.pdf", bbox_inches="tight")
     plt.savefig(PATH + f"/figs/results/elbo.png", bbox_inches="tight")
@@ -97,12 +97,10 @@ def main():
 
     if mc_y is not None:
         print("Plotting KL curves too since ground-truth LML available.")
-        fig, axes = plt.subplots(1, 1, figsize=(10.5, 3))
+        fig, axes = plt.subplots(1, 1, figsize=(7, 2))
         marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
         axes.grid(alpha=0.5)
         for i, (model, code) in enumerate(modelname_codename.items()):
-            if model == 'mc':
-                continue
             ys = []
             for seed in seeds:
                 with open(PATH + f"/results/{seed}/{code}.json", "r") as f:
@@ -113,6 +111,8 @@ def main():
             ys = torch.tensor(ys)
             y_means = ys.mean(0)
             y_stds = ys.std(0)
+            if model == 'mc':
+                y_stds = torch.zeros_like(y_means)
             c = colours[model]
             m = marker_styles[i]
             lab = model.upper()
@@ -124,7 +124,7 @@ def main():
             axes.plot(x, y_means.tolist(), color=c)
             axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
             axes.set_xlabel(r'$\sigma_y$')
-            axes.set_ylabel(r'$KL[q(\mathbf{W}|\mathcal{D})\|p(\mathbf{W}|\mathcal{D})]$')
+            # axes.set_ylabel(r'$KL[q(\mathbf{W}|\mathcal{D})\|p(\mathbf{W}|\mathcal{D})]$')
             axes.set_xscale('log')
             axes.set_ylim([0, 50])
             axes.set_xlim([max(0.01, x_lim), 10.0])
@@ -133,7 +133,7 @@ def main():
         axes.spines['right'].set_alpha(0.5)
         axes.spines['bottom'].set_alpha(0.5)
         axes.spines['left'].set_alpha(0.5)
-        axes.legend(ncol=4)
+        axes.legend(ncol=2)
 
         plt.savefig(PATH + f"/figs/results/kl.pdf", bbox_inches="tight")
         plt.savefig(PATH + f"/figs/results/kl.png", bbox_inches="tight")
