@@ -143,6 +143,19 @@ class MCMC_BNN(nn.Module, ABC):
             out[self.cum_wpl[i]:self.cum_wpl[i+1]] = w.flatten()
         return out
     
+    def get_map_sln(self, X: torch.Tensor, Y: torch.Tensor):
+        # quick optimisation loop to get MAP solution.
+        W = nn.Parameter(torch.zeros((self.num_weights,)), requires_grad=True)
+        opt = torch.optim.Adam([W], lr=5e-3)
+        for _ in range(5000):
+            opt.zero_grad()
+            loss = self.U(X, Y, W)
+            loss = loss
+            loss.backward()
+        
+        return W.detach()
+
+    
     @abstractmethod
     def get_proposal(self):
         pass

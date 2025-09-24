@@ -21,6 +21,10 @@ def modelnames_to_labels(models):
             p = m[5:]
             gandalf.append(p)
             # gandalf.append(f"BDNP ({p})")
+        elif m == "bnp":
+            gandalf.append("BNP  ")
+        elif m == "ar-tnp":
+            gandalf.append("  AR-TNP")
         else:
             gandalf.append(m.upper())
     return gandalf
@@ -89,14 +93,14 @@ def main(dataset='paul15', exclude_bnns=False):
             cval = 1.0
         else:
             cval = float(model.split("_")[1])
-        colours.append(plt.cm.plasma(cval*0.9))
+        colours.append(plt.cm.plasma(cval*0.8))
         model_order_clean.append(model)
 
     for metric in ["mae", "ppd"]:
         means = [m[0] for m in metrics_data[metric]]
         sems = [m[1] for m in metrics_data[metric]]
 
-        fig, ax = plt.subplots(figsize=(10, 2.5))
+        fig, ax = plt.subplots(figsize=(7.5, 1.875))
         x = np.arange(len(model_order_clean))
         for xi, mean, sem, color in zip(x, means, sems, colours):
             ax.errorbar(
@@ -114,11 +118,11 @@ def main(dataset='paul15', exclude_bnns=False):
         # ax.set_xticklabels(labels, rotation=45, ha="right")
         ax.set_xticklabels(labels)
 
-        mid = (bdnp_idx[0]-0.3 + bdnp_idx[-1]+0.3) / 2
-        h = -0.15
+        mid = (bdnp_idx[0]-0.5 + bdnp_idx[-1]+0.5) / 2
+        h = -0.19
         ax.annotate(
             "BDNP",
-            xy=(mid, h - 0.05),
+            xy=(mid, h - 0.075),
             xycoords=('data', 'axes fraction'),
             ha='center', va='top', fontsize=10,
             annotation_clip=False
@@ -132,10 +136,11 @@ def main(dataset='paul15', exclude_bnns=False):
         )
 
         if metric == "mae":
-            ax.set_ylabel("mae (↓)", rotation=0, labelpad=20)
+            # ax.set_ylabel("mae (↓)", rotation=0, labelpad=20)
             ax.set_ylim(bottom=0.0)
         else:
-            ax.set_ylabel("ppd (↑)", rotation=0, labelpad=20)
+            # ax.set_ylabel("ppd (↑)", rotation=0, labelpad=20)
+            pass
         ax.grid(axis="y", linestyle="--", alpha=0.7)
         ax.set_axisbelow(True)
 

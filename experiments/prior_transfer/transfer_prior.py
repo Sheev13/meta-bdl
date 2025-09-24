@@ -183,6 +183,8 @@ def main(prior=None,
         # initialise model if not pretrained BDNP
         if not ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')):
             model = model_class(**model_kwargs)
+            if model_name.lower() == 'givi':
+                model.init_inducing_points(Xc)
             # adopt prior if using pre-trained one.
             if prior.lower() != 'bnn':
                 pretrained_bdnp = torch.load(PATH + f'/saved_models/{prior}', weights_only=False)
@@ -204,7 +206,7 @@ def main(prior=None,
                 retain_graph = True
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=15_000,
+                                                       training_steps=20_000,
                                                        learning_rate=5e-3,
                                                        final_learning_rate=1e-4,
                                                        num_samples=8,
@@ -216,6 +218,11 @@ def main(prior=None,
                 if model_name.lower() == 'bdnp':
                     pred_samps = model(xs, Xc, yc, num_samples=100)[0]
                     pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+                elif model_name.lower() == 'givi':
+                    pred_yt = torch.zeros((1000, Xt.shape[0], 1))
+                    for p in range(10):
+                        pred_yt[p*100:(p+1)*100,:,:] = model(Xt, num_samples=100)
+                    pred_samps = model(xs, num_samples=100)
                 else:
                     pred_samps = model(xs, num_samples=100)
                     pred_yt = model(Xt, num_samples=num_samples)
@@ -223,7 +230,7 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 1e-4
+                step_size = 1e-6 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
                 steps = 5_000
                 burn = 2_000
                 thin = 50
@@ -243,12 +250,12 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 1e-4
+                step_size = 5e-7 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
                 steps = 250_000
                 burn = 50_000
                 thin = 5_000
                 leapfrog_steps = 1
-
+            init_samples, _ = baselines.run_mcmc(model, Xc, yc, algorithm='hmc', steps=50, step_size=5e-4, metropolis_adjusted=True, leapfrog_steps=100)
             raw_samples, training_metrics = baselines.run_mcmc(model,
                                                                Xc,
                                                                yc,
@@ -257,7 +264,8 @@ def main(prior=None,
                                                                step_size=step_size,
                                                                minibatch_size=None, # full-batch
                                                                metropolis_adjusted=True,
-                                                               leapfrog_steps=leapfrog_steps)
+                                                               leapfrog_steps=leapfrog_steps,
+                                                               init_W=init_samples[-1,:])
             
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]

@@ -29,13 +29,13 @@ def main():
     PATH = str(Path(__file__).resolve().parent)
 
     positions = np.arange(len(methods)) * 2.0  # space out models
-    width = 0.6  # width of each box
+    width = 0.8  # width of each box
     marker_styles = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
 
     for metric in  ['ppd', 'mae']:
 
         for i, dataset in enumerate(datasets):
-            fig, ax = plt.subplots(figsize=(7, 5))
+            fig, ax = plt.subplots(figsize=(3.5, 2.5))
             for j, method in enumerate(methods):
                 try:
                     with open(PATH + f"/{dataset}/{method}/bnn/results.json", "r") as f:
@@ -43,7 +43,7 @@ def main():
                     m_bnn = np.mean(bnn_prior_results)
                     se_bnn = np.std(bnn_prior_results, ddof=1) / np.sqrt(len(bnn_prior_results))
                     ax.errorbar(positions[j]-width/2, m_bnn, yerr=se_bnn, fmt = 'o',
-                                color='red', capsize=4, markersize=7.5)
+                                color='red', capsize=3.5, markersize=6.25)
                     # ax.boxplot(bnn_prior_results, positions=[positions[j] - width/2], widths=width, patch_artist=True,
                     #         boxprops=dict(facecolor=colours[method]), medianprops=dict(color='red'))
                 except:
@@ -54,7 +54,7 @@ def main():
                     m_learn = np.mean(learned_prior_results)
                     se_learn = np.std(learned_prior_results, ddof=1) / np.sqrt(len(learned_prior_results))
                     ax.errorbar(positions[j]+width/2, m_learn, yerr=se_learn, fmt='o',
-                                color='green', capsize=4, markersize=7.5) 
+                                color='green', capsize=3.5, markersize=6.25) 
                     # ax.boxplot(learned_prior_results, positions=[positions[j] + width/2], widths=width, patch_artist=True,
                     #         boxprops=dict(facecolor=colours[method]), medianprops=dict(color='green'))
                 except:
@@ -62,13 +62,15 @@ def main():
 
             if metric == 'mae':
                 ax.set_ylim(bottom=0.0)
+            else:
+                tites = {'gp': 'GP', 'heaviside': 'Heaviside', 'sawtooth': 'Sawtooth'}
+                ax.set_title(tites[dataset])
             ax.set_xticks(positions)
             ax.set_xticklabels([method.upper() for method in methods])
             for j, pos in enumerate(positions):
                 ax.axvspan(pos - 1.0, pos + 1.0, color="gray", alpha=0.1 if j % 2 == 0 else 0)
             ylab = metric.upper() + " (↑)" if metric == 'ppd' else metric.upper() + " (↓)"
-            ax.set_ylabel(ylab, rotation=0, labelpad=20)
-            ax.set_title(dataset)
+            # ax.set_ylabel(ylab, rotation=0, labelpad=20)
             ax.grid(axis="y", linestyle="--", alpha=0.7)
             ax.set_axisbelow(True)
 

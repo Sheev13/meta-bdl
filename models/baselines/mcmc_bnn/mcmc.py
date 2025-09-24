@@ -23,6 +23,7 @@ def run_mcmc(model: MCMC_BNN,
             step_size: float = 1e-4,
             minibatch_size: Optional[int] = None, # whether to do minibatching, and if so what size batches
             metropolis_adjusted: bool = False, # include accept-reject step or not
+            init_W: Optional[torch.Tensor] = None,
             **hmc_kwargs,
             ):
     if algorithm is None:
@@ -46,7 +47,10 @@ def run_mcmc(model: MCMC_BNN,
     posterior_samples = torch.zeros((steps, num_w))
     momenta = torch.zeros((steps, num_w))
     acceptance_counter = 0
-    W = model.sample_from_prior()
+    if init_W is None:
+        W = model.sample_from_prior()
+    else:
+        W = init_W.clone()
     if hmc:
         P = torch.randn_like(W)
 
