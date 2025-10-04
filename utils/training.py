@@ -178,10 +178,10 @@ def train_meta_model(
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True, batch_size=within_task_batch_size)
             elif loss_function == 'pp-avi': # posterior-predictive AVI
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_c, y_c, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
             elif loss_function == 'npvi': # neural process variational inference (i.e. KL is between two approx. posteriors)
                 try:
                     loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)

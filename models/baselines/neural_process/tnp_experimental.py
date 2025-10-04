@@ -27,16 +27,18 @@ class MHALayer(nn.Module):
 
     def scaled_dot_product_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
         # q, k, and v are all shape (samples, n, d_emb)
-        samples, n = q.shape[:2]
-        q = q.reshape(samples, n, self.num_heads, self.d_head).transpose(1, 2) # shape (samples, num_heads, n, d_head)
-        k = k.reshape(samples, n, self.num_heads, self.d_head).transpose(1, 2) # "
-        v = v.reshape(samples, n, self.num_heads, self.d_head).transpose(1, 2) # "
+        # if inside cross-attention, n is n_t for q and n_c for others
+        samples, n_t = q.shape[:2]
+        n_c = k.shape[1]
+        q = q.reshape(samples, n_t, self.num_heads, self.d_head).transpose(1, 2) # shape (samples, num_heads, n_t, d_head)
+        k = k.reshape(samples, n_c, self.num_heads, self.d_head).transpose(1, 2) # shape (samples, num_heads, n_c, d_head)
+        v = v.reshape(samples, n_c, self.num_heads, self.d_head).transpose(1, 2) # "
 
-        scores = q @ k.transpose(-2, -1) / (self.d_head**0.5) # shape (samples, num_heads, n, n)
-        attn_weights = F.softmax(scores, dim=-1)
+        scores = q @ k.transpose(-2, -1) / (self.d_head**0.5) # shape (samples, num_heads, n_t, n_c)
+        attn_weights = F.softmax(scores, dim=-1) # ""
 
-        attn_output = attn_weights @ v # shape (samples, num_heads, n, d_head)
-        return attn_output.transpose(1, 2).contiguous().reshape(samples, n, self.d_emb)
+        attn_output = attn_weights @ v # shape (samples, num_heads, n_t, d_head)
+        return attn_output.transpose(1, 2).contiguous().reshape(samples, n_t, self.d_emb)
     
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
         q = self.q_proj(q)
@@ -68,16 +70,16 @@ class MHABlock(nn.Module):
 
 
 class MHSABlock(MHABlock):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def forward(self, qkv: torch.Tensor):
         return super().forward(qkv, qkv, qkv)
     
 
 class MHCABlock(MHABlock):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def forward(self, q: torch.Tensor, kv: torch.Tensor):
         return super().forward(q, kv, kv)
@@ -157,12 +159,15 @@ class EQTNP(nn.Module):
         Xt = self.certify_shapes(Xt)
         Xc = self.certify_shapes(Xc)
         Yc = self.certify_shapes(Yc, is_output=True)
+        n_c = Xc.shape[0]
+        n_t = Xt.shape[0]
 
         Zc = torch.cat((Xc, Yc), dim=-1) # shape (n_c, x_dim+y_dim)
         Zc = self.ctxt_tokeniser(Zc)
-        Zt = self.trgt_tokeniser(Zt)
+        Zt = self.trgt_tokeniser(Xt)
 
         Zc, Zt = self.transformer(Zc, Zt)
+        Zc, Zt = Zc.squeeze(0), Zt.squeeze(0)
 
         y_t_params = self.decoder(Zt)
         means, stds = y_t_params[:,:self.y_dim], 0.001+0.999*nn.functional.softplus(y_t_params[:,self.y_dim:])
@@ -172,7 +177,7 @@ class EQTNP(nn.Module):
     def loss(self, Xc, yc, Xt, yt, **redundant_kwargs):
         """Predictive log likelihood of targets given contexts"""
         predictive = self(Xt, Xc, yc)
-        ll = predictive.log_prob(yt)
+        ll = predictive.log_prob(yt).sum()
 
         metrics = {
             "ll": ll.detach().item(),
