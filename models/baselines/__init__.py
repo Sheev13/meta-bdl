@@ -5,4 +5,4 @@ from .swag_bnn.swag_mlp import SWAG_BNN
 from .swag_bnn.swag import pretrain, run_SWAG
 from .neural_process.lnpf import NP, BNP, LANP, ABNP
 from .neural_process.cnpf import CNP, TNP
-from .neural_process.tnp_experimental import EQTNP
+from .neural_process.tnp_experimental import EQTNP, EpiTNP
