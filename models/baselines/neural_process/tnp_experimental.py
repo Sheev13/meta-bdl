@@ -96,13 +96,13 @@ class EQTNPBlock(nn.Module):
             Zc = Zc.unsqueeze(0)
         if len(Zt.shape) == 2:
             Zt = Zt.unsqueeze(0)
-        elif len(Zt.shape) == 3:
+        elif len(Zt.shape) == 3 and Zc.shape[0] == 1:
             num_samples = Zt.shape[0]
             Zc = Zc.repeat((num_samples, 1, 1))
 
         Zc = self.mhsa(Zc)
         Zt = self.mhca(Zt, Zc)
-
+        
         return Zc, Zt
     
 
