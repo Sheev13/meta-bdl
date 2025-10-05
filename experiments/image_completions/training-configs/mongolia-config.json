@@ -1,0 +1,29 @@
+{
+    "codename": "mongolia",
+    "prev_codename": null,
+    "architecture": [
+        64,
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "relu",
+    "residual": false,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "pyramid": false,
+    "use_act": false,
+    "training_steps": 250000,
+    "batch_size": 5,
+    "within_task_batch_size": null,
+    "learning_rate": 1e-05,
+    "final_learning_rate": 1e-06,
+    "loss_function": "pp-avi",
+    "num_samples": 16,
+    "ctxt_proportion_range": [
+        0.01,
+        0.6
+    ],
+    "use_pretrained": false,
+    "use_gpu": true
+}

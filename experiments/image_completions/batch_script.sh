@@ -21,8 +21,7 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/image_completions/image_completions.py \
-    --codename liechtenstein \
-    --prev_codename kenya \
+    --codename mongolia \
     --architecture 64 64 64 64 \
     --training_steps 250_000 \
     --num_samples 16 \

@@ -39,7 +39,8 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
     return md
 
 def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu', residual=False, trainable_likelihood_noise=True, init_likelihood_noise=0.1, transformer_layers=None, transformer_width=None, use_act=False):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise, sigma_y_upper_bound=0.3)
+    # lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise, sigma_y_upper_bound=0.3)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()

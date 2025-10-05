@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from abc import ABC, abstractmethod
 import warnings
 from base_networks.base_architectures import MLP
-from ...likelihoods import GaussianLikelihood
+from ...likelihoods import GaussianLikelihood, BernoulliLikelihood
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 class MHALayer(nn.Module):
     """Represents a general-purpose dot-product multi-head attention layer."""
@@ -96,6 +96,9 @@ class EQTNPBlock(nn.Module):
             Zc = Zc.unsqueeze(0)
         if len(Zt.shape) == 2:
             Zt = Zt.unsqueeze(0)
+        elif len(Zt.shape) == 3:
+            num_samples = Zt.shape[0]
+            Zc = Zc.repeat((num_samples, 1, 1))
 
         Zc = self.mhsa(Zc)
         Zt = self.mhca(Zt, Zc)
@@ -159,8 +162,6 @@ class EQTNP(nn.Module):
         Xt = self.certify_shapes(Xt)
         Xc = self.certify_shapes(Xc)
         Yc = self.certify_shapes(Yc, is_output=True)
-        n_c = Xc.shape[0]
-        n_t = Xt.shape[0]
 
         Zc = torch.cat((Xc, Yc), dim=-1) # shape (n_c, x_dim+y_dim)
         Zc = self.ctxt_tokeniser(Zc)
@@ -184,3 +185,79 @@ class EQTNP(nn.Module):
         }
             
         return - ll, metrics
+    
+
+class EpiTNP(nn.Module):
+    def __init__(self,
+                 x_dim: Optional[int] = None,
+                 y_dim: Optional[int] = None,
+                 lik: Optional[Union[GaussianLikelihood, BernoulliLikelihood]] = None,
+                 num_blocks: int = 2,
+                 d_emb: int = 64,
+                 num_heads: int = 8,
+                 nonlinearity: nn.Module = nn.ReLU(),
+                ):
+        super().__init__()
+        if x_dim is None or y_dim is None:
+            raise ValueError("User failed to provide dimensionality of inputs/outputs to EQTNP class.")
+        if lik is None:
+            raise ValueError("User failed to provide a likelihood object to EQTNP class.")
+        
+        self.ctxt_tokeniser = MLP([x_dim+y_dim, d_emb, d_emb], nonlinearity)
+        self.trgt_tokeniser = MLP([x_dim+y_dim, d_emb, d_emb], nonlinearity)
+        
+        transformer_blocks = [EQTNPBlock(d_emb, num_heads, nonlinearity) for _ in range(num_blocks)]
+        self.transformer = DualSequential(*transformer_blocks)
+
+        self.decoder = MLP([d_emb, d_emb, y_dim], nonlinearity)
+
+        self.x_dim = x_dim
+        self.y_dim = y_dim
+        self.num_blocks = num_blocks
+        self.d_emb = d_emb
+        self.num_heads = num_heads
+        self.nonlinearity = nonlinearity
+        self.likelihood = lik
+
+    def certify_shapes(self, a: torch.Tensor, is_output: bool = False):
+        d_dim = self.y_dim if is_output else self.x_dim
+        if len(a.shape) == 0:
+            a = a.unsqueeze(0).unsqueeze(0) # user forgot to unsqueeze anything and has passed a single element
+        if len(a.shape) == 1:
+            if d_dim == 1:
+                a = a.unsqueeze(-1) # user forgot to unsqueeze for data dimensionality of 1
+            else:
+                a = a.unsqueeze(0) # user forgot to unsqueeze for dataset size of 1
+
+        return a
+
+    def forward(self, Xt: torch.Tensor, Xc: torch.Tensor, Yc: torch.Tensor, num_samples: int = 1):
+        # the following just ensure each tensor is (n, d_dim) 
+        #   where n is either n_c or n_t and d_dim is either x_dim or y_dim.
+        Xt = self.certify_shapes(Xt)
+        Xc = self.certify_shapes(Xc)
+        Yc = self.certify_shapes(Yc, is_output=True)
+
+        Zc = torch.cat((Xc, Yc), dim=-1) # shape (n_c, x_dim+y_dim)
+        Zc = self.ctxt_tokeniser(Zc)
+        Ye = torch.randn((num_samples, self.y_dim)).unsqueeze(1).repeat((1, Xt.shape[0], 1)) # seed of shape (samples, n_t, y_dim)
+        Xt = Xt.unsqueeze(0).repeat((num_samples, 1, 1))
+        Zt = torch.cat((Xt, Ye), dim=-1) # shape (samples, n_t, x_dim+y_dim)
+        Zt = self.trgt_tokeniser(Zt) # shape (samples, n_t, d_emb)
+
+        Zc, Zt = self.transformer(Zc, Zt)
+
+        return self.decoder(Zt) # shape (samples, n_t, y_dim)
+
+    def loss(self, Xc, Yc, Xt, Yt, num_samples=1, **redundant_kwargs):
+        """Predictive log likelihood of targets given contexts"""
+        pred_t = self(Xt, Xc, Yc, num_samples=num_samples)
+        lel = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
+        # if you're just joining the stream, lel stands for log-expected-likelihood guys. Chat he's deffo using a calc.
+        metrics = {
+            "lel": lel.detach().item(),
+        }
+        if self.y_dim == 1 and isinstance(self.likelihood, GaussianLikelihood):
+            if self.likelihood.raw_sigmas.requires_grad:
+                metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
+        return - lel, metrics

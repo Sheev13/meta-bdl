@@ -22,17 +22,17 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/1d_regressions/1d_regressions.py \
-    --codename sigrid \
+    --codename thomas \
     --function_type heaviside \
     --trainable_likelihood_noise \
-    --init_likelihood_noise 0.05 \
+    --init_likelihood_noise 0.1 \
     --nonlinearity tanh \
-    --architecture 64 64 \
-    --training_steps 20_000 \
+    --architecture 48 48 \
+    --training_steps 30_000 \
     --loss_function pp-avi \
     --num_samples 32 \
     --release_prior_at_step 0 \
     --learning_rate 5e-3 \
-    --final_learning_rate 5e-5 \
+    --final_learning_rate 1e-5 \
     --train_new_model \
     --use_gpu
