@@ -7,8 +7,8 @@
     ],
     "function_type": "heaviside",
     "architecture": [
-        48,
-        48
+        128,
+        128
     ],
     "nonlinearity": "tanh",
     "residual": false,

@@ -22,11 +22,11 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/1d_regressions/1d_regressions.py \
-    --codename thomas \
-    --function_type heaviside \
+    --codename vincent \
+    --function_type bnn \
     --trainable_likelihood_noise \
-    --init_likelihood_noise 0.1 \
-    --nonlinearity tanh \
+    --init_likelihood_noise 0.05 \
+    --nonlinearity relu \
     --architecture 48 48 \
     --training_steps 30_000 \
     --loss_function pp-avi \
