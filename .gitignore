@@ -8,3 +8,4 @@
 experiments/era5_prior_transfer/data/*
 experiments/goldilocks/data/abalone/*
 ecg_arrhythmia_data/
+ecg_data/
