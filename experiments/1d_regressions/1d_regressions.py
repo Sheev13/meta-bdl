@@ -39,8 +39,8 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
     return md
 
 def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu', residual=False, trainable_likelihood_noise=True, init_likelihood_noise=0.1, transformer_layers=None, transformer_width=None, use_act=False):
-    # lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise, sigma_y_upper_bound=0.3)
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise, sigma_y_upper_bound=0.3)
+    # lik = models.GaussianLikelihood(y_dim=1, sigma_y=init_likelihood_noise, train=trainable_likelihood_noise)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -64,7 +64,7 @@ def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu', residual=False,
                    hidden_dims=architecture,
                    prior_type=1,
                    likelihood=lik,
-                   inf_dims=architecture, 
+                   inf_dims=[int(2*d) for d in architecture], 
                    use_final_layer_targets=True,
                    use_final_layer_noise=False,
                    scale_prior=True,
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--loss_function', type=str, default='p-avi', help='Objective function (vi or npvi)')
     parser.add_argument('--num_samples', type=int, default=8, help='Number of MC samples to estimate expected log likelihood.')
     parser.add_argument('--release_prior_at_step', type=int, default=0, help='Training step at which prior parameters start being optimised')
-    parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.1, 0.9], help='Range of context set/full set proportion for each sampled task')
+    parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.1, 0.5], help='Range of context set/full set proportion for each sampled task')
     parser.add_argument('--train_new_model', action='store_true', help='Train a new BDNP, or load a pre-trained one.')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
 

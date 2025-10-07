@@ -22,10 +22,10 @@ def main(model: str = None,
     print("model: ", model, " seed: ", seed, "prior trainability: ", prior_trainability, "dataset: ", dataset)
 
     model = model.lower()
-    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp'] # no conv(c/g)np since there are 7 > 3 input dims.
+    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp', 'new_bdnp'] # no conv(c/g)np since there are 7 > 3 input dims.
     if model in ['swag', 'mfvi', 'givi']:
         model_type = 'bnn'
-    elif model == 'bdnp':
+    elif model == 'bdnp' or model == 'new_bdnp':
         model_type = 'bdnp'
     else:
         model_type = 'np'
@@ -36,7 +36,7 @@ def main(model: str = None,
         raise ValueError("User failed to specify which dataset to use.")
     if seed is None:
         raise ValueError("User failed to specify which seed to use.")
-    if (model == 'bdnp') and (prior_trainability is None):
+    if (model == 'bdnp' or model == 'new_bdnp') and (prior_trainability is None):
         raise ValueError("User failed to specify how much of the BDNP prior to train.")
     if prior_trainability is not None:
         if prior_trainability < 0.0:
@@ -56,7 +56,7 @@ def main(model: str = None,
     torch.set_default_dtype(dtp)
 
     model_codename = model
-    if model == 'bdnp':
+    if model == 'bdnp' or model == 'new_bdnp':
         model_codename += f"_{prior_trainability}"
 
     PATH = str(Path(__file__).resolve().parent)
@@ -83,7 +83,7 @@ def main(model: str = None,
         dataset_metadata = json.load(f)
     x_dim = int(dataset_metadata["dimensionality"])
 
-    if model == 'bdnp':
+    if model == 'bdnp' or model == 'new_bdnp':
         model_kwargs = {'x_dim': x_dim,
                         'y_dim': 1,
                         'likelihood': models.GaussianLikelihood(1, sigma_y=0.5 if dataset == 'paul15' else 0.1, train=True),
@@ -101,9 +101,9 @@ def main(model: str = None,
             else:
                 m.set_prior_trainability(prior_trainability, from_front=True)
 
-        training_kwargs = {'training_steps': 75_000,
+        training_kwargs = {'training_steps': 100_000,
                            'batch_size': 5,
-                           'learning_rate': 1e-4,
+                           'learning_rate': 1e-4 if dataset == 'paul15' else 5e-4,
                            'final_learning_rate': 5e-5,
                            'num_samples': 16,
                            'loss_function': 'pp-avi',
@@ -197,11 +197,11 @@ def main(model: str = None,
     yt = yt_raw.to(device=device, dtype=dtp)
     num_predict_samps = 1000
 
-    if model == 'bdnp' or model_type == 'np':
+    if model_type == 'bdnp' or model_type == 'np':
         md = torch.load(PATH + f"/data/{dataset}/train_sets.pt", weights_only=False)
         training_metrics = train_meta_model(m, md, **training_kwargs)
         with torch.no_grad():
-            if model == 'bdnp':
+            if model == 'bdnp' or model == 'new_bdnp':
                 pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps, batch_size=50)[0]
             elif model in ['np', 'bnp']:
                 pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps)

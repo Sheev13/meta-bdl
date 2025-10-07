@@ -35,7 +35,7 @@ def train_meta_model(
     dataset_on_cpu: bool = False,
 ) -> Dict:
     
-    if loss_function not in ['avi', 'npvi', 'npml', 'p-avi', 'po-avi', 'mpl', 'pp-avi']:
+    if loss_function not in ['avi', 'mpl', 'pp-avi', 'exp']:
         raise ValueError(f"Loss function: {loss_function} not recognised.")
     
     # set device to gpu if user wants to and one is available.
@@ -157,43 +157,32 @@ def train_meta_model(
                 b_inds = torch.randperm(X.shape[0])[:b]
                 X, y = X[b_inds], y[b_inds]
 
-            if loss_function == 'avi':
-                X_c, y_c, X_t, y_t = X, y, X, y
-            elif loss_function == 'po-avi' or loss_function == 'pp-avi':
-                X_c, y_c, X_t, y_t = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
-            else:
-                X_c, y_c, _, _ = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
-                X_t, y_t = X, y
-            if loss_function == 'npml': # neural process maximum likelihood (expected log likelihood if sampling)
+            X_c, y_c, X_t, y_t = ctxt_trgt_split(X, y, ctxt_proportion_range=ctxt_proportion_range, ctxt_proportion=proportion)
+
+            if loss_function == 'mpl': # maximum predictive likelihood (log expected likelihood if sampling)
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, batch_size=within_task_batch_size)
-            elif loss_function == 'mpl': # maximum predictive likelihood (log expected likelihood if sampling)
-                try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True, batch_size=within_task_batch_size)
-                except ValueError:
-                    print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, use_kl=False, logsumexp=True, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
             elif loss_function == 'pp-avi': # posterior-predictive AVI
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, pp_avi=True, batch_size=within_task_batch_size)
-            elif loss_function == 'npvi': # neural process variational inference (i.e. KL is between two approx. posteriors)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+            elif loss_function == 'exp': # experimental
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, np_kl=True)
-            elif 'avi' in loss_function: # AVI, P-AVI, or PO-AVI
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+            elif loss_function == 'avi': # amortised variational inference
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
             else:
                 raise ValueError(f"Unrecognised loss function: {loss_function}.")
 

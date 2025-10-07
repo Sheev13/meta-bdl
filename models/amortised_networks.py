@@ -176,39 +176,32 @@ class BDNP(nn.Module):
         
         return self.likelihood(Xt_prev), self.likelihood(Xc_prev), cum_kl
 
-    def loss(self, Xc, Yc, Xt=None, Yt=None, num_samples=1, use_kl=True, logsumexp=False, pp_avi=False, batch_size=None, **kwargs):
+    def loss(self, Xc, Yc, Xt=None, Yt=None, num_samples=1, objective='avi', batch_size=None, beta=1.0, **kwargs):
+        objective = objective.lower()
+        assert objective in ['avi', 'pp-avi', 'exp', 'mpl']
         metrics = {}
-        if Xt is None:
-            Xt, Yt = Xc, Yc
-        pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=use_kl, num_samples=num_samples, batch_size=batch_size)
-        if pp_avi:
-            trgt_ppl = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
-            ctxt_ell = self.likelihood.log_prob(pred_c, Yc).mean(0).sum() # average over samples, sum over batch
-            elbo = ctxt_ell - kl
-            loss = elbo + trgt_ppl
-            metrics["pp_avi"] = loss.detach().item()
-            metrics["elbo"] = elbo.detach().item()
-            metrics["trgt_ppl"] = trgt_ppl.detach().item()
-            metrics["ctxt_ell"] = ctxt_ell.detach().item()
-            metrics["kl"] = kl.detach().item()
-        elif logsumexp: # log-sum-exp over samples, sum over batch
-            # estimates log expected likelihood (i.e. log posterior predictive)
-            loss = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
-            metrics["ppl"] = loss.detach().item()
-        else:
-            # estimates expected log likelihood
-            ell = self.likelihood.log_prob(pred_t, Yt).mean(0).sum() # average over samples, sum over batch
-            loss = ell - kl
-            if use_kl:
-                metrics["elbo"] = loss.detach().item()
-                metrics["ell"] = ell.detach().item()
-                metrics["kl"] = kl.detach().item()
-            else:
-                metrics["ell"] = loss.detach().item()
+
+        pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=True, num_samples=num_samples, batch_size=batch_size)
+        ctxt_ell = self.likelihood.log_prob(pred_c, Yc).mean(0).sum() # average over samples, sum over batch
+        trgt_ppl = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
+
+        if objective == 'avi':
+            loss = ctxt_ell - beta*kl
+        elif objective == 'pp-avi':
+            loss = trgt_ppl + ctxt_ell - beta*kl
+        elif objective == 'exp':
+            loss = ctxt_ell
+        else: # i.e. objective == 'mpl'
+            loss = trgt_ppl
 
         if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
             if self.likelihood.raw_sigmas.requires_grad:
                 metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
+        
+        metrics[objective] = loss.detach().item()
+        metrics["trgt_ppl"] = trgt_ppl.detach().item()
+        metrics["ctxt_ell"] = ctxt_ell.detach().item()
+        metrics["kl"] = kl.detach().item()
 
         return - loss, metrics
 

@@ -44,7 +44,7 @@ def main(
         codename=None,
         prev_codename=None,
         architecture=[256, 256, 256],
-        nonlinearity='relu',
+        nonlinearity='silu',
         residual=False,
         transformer_layers=None,
         transformer_width=None,
@@ -57,7 +57,7 @@ def main(
         final_learning_rate=5e-5,
         loss_function='pp-avi',
         num_samples=8,
-        ctxt_proportion_range=(0.1, 0.9),
+        ctxt_proportion_range=(0.01, 0.99),
         use_pretrained=False,
         use_gpu=True,
 ):

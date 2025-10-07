@@ -21,11 +21,13 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/image_completions/image_completions.py \
-    --codename mongolia \
+    --codename cold_avi \
     --architecture 64 64 64 64 \
     --training_steps 250_000 \
-    --num_samples 16 \
-    --ctxt_proportion_range 0.01 0.6 \
-    --learning_rate 1e-5 \
+    --num_samples 32 \
+    --ctxt_proportion_range 0.01 0.99 \
+    --loss_function avi \
+    --learning_rate 1e-4 \
     --final_learning_rate 1e-6 \
+    --within_task_batch_size 128 \
     --use_gpu
