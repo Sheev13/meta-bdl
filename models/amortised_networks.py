@@ -181,6 +181,10 @@ class BDNP(nn.Module):
         assert objective in ['avi', 'pp-avi', 'exp', 'mpl']
         metrics = {}
 
+        if Xt is None:
+            Xt = Xc.clone()
+            Yt = Yc.clone()
+
         pred_t, pred_c, kl = self(Xt, Xc=Xc, Yc=Yc, return_kl=True, num_samples=num_samples, batch_size=batch_size)
         ctxt_ell = self.likelihood.log_prob(pred_c, Yc).mean(0).sum() # average over samples, sum over batch
         trgt_ppl = self.likelihood.log_prob(pred_t, Yt).sum(-1).sum(-1).logsumexp(0) - torch.tensor(num_samples).log()
@@ -188,20 +192,21 @@ class BDNP(nn.Module):
         if objective == 'avi':
             loss = ctxt_ell - beta*kl
         elif objective == 'pp-avi':
-            loss = trgt_ppl + ctxt_ell - beta*kl
+            loss = beta*trgt_ppl + ctxt_ell - beta*kl
         elif objective == 'exp':
             loss = ctxt_ell
+            # pp-avi plus posterior predictive of contexts
         else: # i.e. objective == 'mpl'
             loss = trgt_ppl
-
-        if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
-            if self.likelihood.raw_sigmas.requires_grad:
-                metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
         
         metrics[objective] = loss.detach().item()
         metrics["trgt_ppl"] = trgt_ppl.detach().item()
         metrics["ctxt_ell"] = ctxt_ell.detach().item()
         metrics["kl"] = kl.detach().item()
+
+        if self.y_dim == 1 and isinstance(self.likelihood, likelihoods.GaussianLikelihood):
+            if self.likelihood.raw_sigmas.requires_grad:
+                metrics['sigma_y'] = self.likelihood.sigmas.detach().item()
 
         return - loss, metrics
 

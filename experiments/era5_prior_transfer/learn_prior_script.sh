@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
-#SBATCH --constraint=a100_80gb|h100_80gb
+#SBATCH --constraint=h100_80gb
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:1
@@ -21,11 +21,10 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/era5_prior_transfer/learn_prior.py \
-    --codename bnn \
+    --codename firefly \
     --architecture 64 64 64 \
-    --nonlinearity relu \
-    --training_steps 50_000 \
+    --nonlinearity silu \
+    --training_steps 100_000 \
     --learning_rate 1e-3 \
     --final_learning_rate 1e-5 \
-    --bnn_prior \
     --use_gpu

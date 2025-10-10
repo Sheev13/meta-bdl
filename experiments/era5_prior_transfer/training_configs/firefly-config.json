@@ -1,0 +1,15 @@
+{
+    "codename": "firefly",
+    "architecture": [
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "silu",
+    "training_steps": 100000,
+    "learning_rate": 0.001,
+    "final_learning_rate": 1e-05,
+    "use_gpu": true,
+    "bnn_prior": false,
+    "use_pretrained": false
+}

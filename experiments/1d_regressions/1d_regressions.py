@@ -94,7 +94,8 @@ def main(
         batch_size=5,
         learning_rate=1e-3,
         final_learning_rate=5e-5,
-        loss_function='p-avi',
+        loss_function='pp-avi',
+        beta=1.0,
         num_samples=1,
         release_prior_at_step=100,
         ctxt_proportion_range=(0.7, 0.9),
@@ -123,6 +124,7 @@ def main(
         # print("Done.")
 
     PATH = str(Path(__file__).resolve().parent)
+    print(codename, function_type)
 
     Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
@@ -163,6 +165,7 @@ def main(
             final_learning_rate=final_learning_rate,
             num_samples=num_samples,
             loss_function=loss_function,
+            beta=beta,
             release_prior_at_step=release_prior_at_step,
             ctxt_proportion_range=ctxt_proportion_range,
             device_agnostic=True,
@@ -277,7 +280,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=5, help='Number of datasets used to estimate objective at each step')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
-    parser.add_argument('--loss_function', type=str, default='p-avi', help='Objective function (vi or npvi)')
+    parser.add_argument('--loss_function', type=str, default='pp-avi', help='Objective function (vi or npvi)')
+    parser.add_argument('--beta', type=float, default=1.0, help='Tempering coefficient for objective function.')
     parser.add_argument('--num_samples', type=int, default=8, help='Number of MC samples to estimate expected log likelihood.')
     parser.add_argument('--release_prior_at_step', type=int, default=0, help='Training step at which prior parameters start being optimised')
     parser.add_argument('--ctxt_proportion_range', type=float, nargs='+', default=[0.1, 0.5], help='Range of context set/full set proportion for each sampled task')

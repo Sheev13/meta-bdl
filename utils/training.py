@@ -23,6 +23,7 @@ def train_meta_model(
     use_gpu: bool = False,
     device_agnostic: bool = False,
     loss_function: str = 'vi', # one of 'vi', 'npvi', 'npml'
+    beta: float = 1.0,
     ctxt_proportion_range: Tuple[float] = (0.4, 0.8),
     es_thresh: Optional[float] = None,
     task_subsample_fraction: Optional[float] = None,
@@ -161,28 +162,28 @@ def train_meta_model(
 
             if loss_function == 'mpl': # maximum predictive likelihood (log expected likelihood if sampling)
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
             elif loss_function == 'pp-avi': # posterior-predictive AVI
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
             elif loss_function == 'exp': # experimental
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
             elif loss_function == 'avi': # amortised variational inference
                 try:
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
                 except ValueError:
                     print("Handled Value Error")
-                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, batch_size=within_task_batch_size)
+                    loss, metrics = model.loss(X_c, y_c, X_t, y_t, num_samples=num_samples, objective=loss_function, beta=beta, batch_size=within_task_batch_size)
             else:
                 raise ValueError(f"Unrecognised loss function: {loss_function}.")
 

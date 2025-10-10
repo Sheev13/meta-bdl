@@ -17,7 +17,7 @@ from base_networks.base_architectures import Sin, SharpTanh
 
 
 def init_bdnp(architecture=[48, 48], nonlinearity='silu'):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.1, train=True)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=True)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -105,7 +105,7 @@ def main(codename=None,
             bdnp.trainable_prior(True)
 
         ######## visualise prior predictive samples with standard guff prior ########
-        for i in range(10):
+        for i in range(20):
             X_normed, _ = md[torch.randint(low=0, high=len(md), size=(1,))]
             X_normed_dev = X_normed.to(device)
             with torch.no_grad():
@@ -140,7 +140,8 @@ def main(codename=None,
             final_learning_rate=final_learning_rate,
             num_samples=16,
             loss_function='pp-avi',
-            ctxt_proportion_range=(0.1, 0.5),
+            ctxt_proportion_range=(0.01, 0.6),
+            # within_task_batch_size=512,
             task_subsample_fraction=0.25,
             device_agnostic=True,
             dataset_on_cpu=True,
@@ -149,24 +150,18 @@ def main(codename=None,
         torch.save(bdnp, PATH + f'/saved_models/{codename}')
 
         fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
-        omitted_steps = 0
+        omitted_steps = 100
         for i, (key, value) in enumerate(training_metrics.items()):
             axes[i].plot(value[omitted_steps:])
             axes[i].set_xlabel(key)
             axes[i].grid()
-            if key in ['elbo', 'loss']:
-                axes[i].set_ylim([-4000, 500])
-            elif key in ['ell', 'ppl']:
-                axes[i].set_ylim([-2000, 300])
-            elif key == 'kl':
-                axes[i].set_ylim([0, 2000])
 
         plt.savefig(PATH + f"/figs/{codename}/pdfs/training.pdf", bbox_inches="tight")
         plt.savefig(PATH + f"/figs/{codename}/pngs/training.png", bbox_inches="tight")
         plt.close()
 
     ##################### visualise prior predictive samples with trained prior ##############
-    for i in range(10):
+    for i in range(20):
         X_normed, _ = md[torch.randint(low=0, high=len(md), size=(1,))]
         X_normed_dev = X_normed.to(device)
         with torch.no_grad():

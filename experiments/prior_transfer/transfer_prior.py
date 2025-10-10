@@ -199,6 +199,8 @@ def main(prior=None,
                         raise ValueError(f"pre-trained BDNP has unsupported type of prior for adoption into {model_name} BNN.")
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
+                # adopt learned likelihood noise too
+                model.likelihood.raw_sigmas.data = pretrained_bdnp.likelihood.raw_sigmas.data
 
         if model_name.lower() in ['mfvi', 'givi'] or ((model_name.lower() == 'bdnp') and (prior.lower() == 'bnn')):
             retain_graph = False
@@ -206,7 +208,7 @@ def main(prior=None,
                 retain_graph = True
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=20_000,
+                                                       training_steps=30_000,
                                                        learning_rate=5e-3,
                                                        final_learning_rate=1e-4,
                                                        num_samples=8,
@@ -230,7 +232,7 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 1e-6 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
                 steps = 5_000
                 burn = 2_000
                 thin = 50
@@ -250,7 +252,7 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 5e-7 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
                 steps = 250_000
                 burn = 50_000
                 thin = 5_000
@@ -270,7 +272,7 @@ def main(prior=None,
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
 
-            training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
+            # training_metrics['autocorrelation'] = autocorrelation_array(raw_samples, max_lag=50)            
             
             with torch.no_grad():
                 pred_yt = model.batch_forward(Xt, samples)
@@ -303,12 +305,6 @@ def main(prior=None,
                 axes[i].plot(value[omitted_steps:])
                 axes[i].set_xlabel(key)
                 axes[i].grid()
-                if key == 'elbo':
-                    axes[i].set_ylim([-5000, 500])
-                elif key == 'e_ll':
-                    axes[i].set_ylim([-4000, 1000])
-                elif key == 'kl':
-                    axes[i].set_ylim([0, 2000])
 
             plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
             plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")

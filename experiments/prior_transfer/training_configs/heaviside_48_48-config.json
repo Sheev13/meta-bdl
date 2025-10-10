@@ -5,10 +5,9 @@
         48,
         48
     ],
-    "nonlinearity": "tanh",
-    "training_steps": 20000,
-    "learning_rate": 0.005,
-    "final_learning_rate": 5e-05,
+    "training_steps": 50000,
+    "learning_rate": 0.001,
+    "final_learning_rate": 1e-05,
     "loss_function": "pp-avi",
     "use_gpu": true
 }

@@ -53,6 +53,7 @@ def main(
         training_steps=10_000,
         batch_size=5,
         within_task_batch_size=None,
+        task_subsample_fraction=None,
         learning_rate=1e-3,
         final_learning_rate=5e-5,
         loss_function='pp-avi',
@@ -76,6 +77,8 @@ def main(
         print("Using CPU")
     torch.set_default_device(device)
     torch.set_default_dtype(torch.float64)
+
+    print(codename)
 
     PATH = str(Path(__file__).resolve().parent)
 
@@ -148,6 +151,7 @@ def main(
             num_samples=num_samples,
             loss_function=loss_function,
             ctxt_proportion_range=ctxt_proportion_range,
+            task_subsample_fraction=task_subsample_fraction,
             device_agnostic=True,
         )
 
@@ -266,6 +270,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_act', action='store_true', help='Pass current layer activations to inference nets?')
     parser.add_argument('--training_steps', type=int, default=30_000, help='The number of training steps')
     parser.add_argument('--batch_size', type=int, default=5, help='Number of datasets used to estimate objective at each step')
+    parser.add_argument('--task_subsample_fraction', type=float, default=None, help='Fracation of full dataset to use.')
     parser.add_argument('--within_task_batch_size', type=int, default=None, help='Number of datapoints used in intermediate layerwise posterior update computations.')
     parser.add_argument('--learning_rate', type=float, default=5e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')

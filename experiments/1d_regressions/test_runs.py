@@ -23,7 +23,7 @@ print("device type: ", device)
 # md = [(X.to(device=device, dtype=torch.float32), y.to(device=device, dtype=torch.float32)) for (X, y) in md]
 # print("Done.")
 
-codename = 'avi'
+codename = 'avi_tempered'
 print(f"Codename: {codename}")
 PATH = str(Path(__file__).resolve().parent)
 
@@ -62,7 +62,7 @@ training_metrics = train_meta_model(
     md,
     training_steps=50_000,
     batch_size=5,
-    learning_rate=5e-3,
+    learning_rate=1e-3,
     final_learning_rate=1e-5,
     num_samples=32,
     loss_function='avi',

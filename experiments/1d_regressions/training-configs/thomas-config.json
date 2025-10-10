@@ -7,8 +7,8 @@
     ],
     "function_type": "heaviside",
     "architecture": [
-        48,
-        48
+        64,
+        64
     ],
     "nonlinearity": "tanh",
     "residual": false,
@@ -17,11 +17,12 @@
     "transformer_layers": null,
     "transformer_width": null,
     "use_act": false,
-    "training_steps": 30000,
+    "training_steps": 50000,
     "batch_size": 5,
     "learning_rate": 0.003,
     "final_learning_rate": 0.0001,
     "loss_function": "pp-avi",
+    "beta": 0.1,
     "num_samples": 32,
     "release_prior_at_step": 0,
     "ctxt_proportion_range": [
