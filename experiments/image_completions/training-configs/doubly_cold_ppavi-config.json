@@ -1,0 +1,29 @@
+{
+    "codename": "doubly_cold_ppavi",
+    "prev_codename": null,
+    "architecture": [
+        64,
+        64,
+        64,
+        64
+    ],
+    "nonlinearity": "relu",
+    "residual": false,
+    "transformer_layers": null,
+    "transformer_width": null,
+    "pyramid": false,
+    "use_act": false,
+    "training_steps": 150000,
+    "batch_size": 5,
+    "within_task_batch_size": 256,
+    "learning_rate": 0.0001,
+    "final_learning_rate": 1e-06,
+    "loss_function": "pp-avi",
+    "num_samples": 32,
+    "ctxt_proportion_range": [
+        0.01,
+        0.99
+    ],
+    "use_pretrained": false,
+    "use_gpu": true
+}
