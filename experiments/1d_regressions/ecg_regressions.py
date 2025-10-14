@@ -41,8 +41,8 @@ def generate_synthetic_ecg_task(
     n_tot = fs * duration * 2
     n_wind = fs * duration
     start_ind, end_ind = random_window(n_tot, n_wind)
-    # signal = signal[start_ind:end_ind]
-    signal  =signal[:int(n_wind)]
+    signal = signal[start_ind:end_ind]
+    # signal  =signal[:int(n_wind)]
 
     # normalize and convert to tensors
     signal -= np.mean(signal)
@@ -96,19 +96,20 @@ def main(codename: Optional[str] = None):
                        inf_dims=architecture,
                        use_final_layer_targets=True,
                        scale_prior=True,
-                       nonlinearity=Sin(),
+                    #    nonlinearity=Sin(),
+                       nonlinearity = torch.nn.SiLU(),
                       )
     bdnp.trainable_prior(True)
 
     training_metrics = train_meta_model(bdnp,
                                         md,
-                                        training_steps=50_000,
+                                        training_steps=150_000,
                                         batch_size=5,
-                                        learning_rate=3e-3, # change to 1e-2 or 5e-3
-                                        final_learning_rate=1e-4,
+                                        learning_rate=1e-3, # change to 1e-2 or 5e-3
+                                        final_learning_rate=1e-5,
                                         num_samples=16,
                                         loss_function='pp-avi',
-                                        ctxt_proportion_range=(0.0025, 0.25), # change to (0.1, 0.9)
+                                        ctxt_proportion_range=(0.0025, 0.25),
                                         # task_subsample_fraction=0.25,
                                         device_agnostic=True,
                                        )
@@ -127,7 +128,7 @@ def main(codename: Optional[str] = None):
     plt.close()
 
 
-    xs = torch.linspace(0.0, 5.0, 250).unsqueeze(-1)
+    xs = torch.linspace(-2.0, 2.0, 250).unsqueeze(-1)
     samps = 25
 
     # x_lim = [0.0, 5.0]
