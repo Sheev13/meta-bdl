@@ -103,15 +103,16 @@ def main(codename: Optional[str] = None):
 
     training_metrics = train_meta_model(bdnp,
                                         md,
-                                        training_steps=150_000,
+                                        training_steps=500_000,
                                         batch_size=5,
                                         learning_rate=1e-3, # change to 1e-2 or 5e-3
-                                        final_learning_rate=1e-5,
+                                        final_learning_rate=5e-6,
                                         num_samples=16,
                                         loss_function='pp-avi',
-                                        ctxt_proportion_range=(0.0025, 0.25),
+                                        ctxt_proportion_range=(0.002, 0.2),
                                         # task_subsample_fraction=0.25,
                                         device_agnostic=True,
+                                        beta=0.2,
                                        )
     
     torch.save(bdnp, PATH + f'/saved_models/bdnp-{codename}')

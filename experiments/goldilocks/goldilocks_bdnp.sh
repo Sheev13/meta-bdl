@@ -37,7 +37,7 @@ seed=${seeds[$seed_index]}
 
 # Run your script with arguments
 python experiments/goldilocks/goldilocks.py \
-    --model new_bdnp \
+    --model bdnp \
     --dataset abalone \
     --prior_trainability $param \
     --seed $seed \

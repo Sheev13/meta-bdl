@@ -10,7 +10,7 @@
 #SBATCH --mem=64G
 #SBATCH --constraint=a100_80gb|h100_80gb
 #SBATCH --cpus-per-task=2
-#SBATCH --time=3:00:00
+#SBATCH --time=4:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --nice=100
 

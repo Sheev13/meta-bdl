@@ -34,7 +34,7 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
     return md
 
 def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu'):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=True, sigma_y_upper_bound=0.5)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=False, sigma_y_upper_bound=0.5)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -131,7 +131,7 @@ def main(num_datasets=100_000,
         final_learning_rate=final_learning_rate,
         num_samples=32,
         loss_function=loss_function,
-        ctxt_proportion_range=(0.1, 0.9),
+        ctxt_proportion_range=(0.1, 0.6),
         device_agnostic=True,
     )
 
@@ -179,9 +179,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_datasets', type=int, default=100_000, help='Number of datasets in meta-dataset')
     parser.add_argument('--function_type', type=str, default='sawtooth', help='Type of function/dataset')
     parser.add_argument('--architecture', type=int, nargs='+', default=[48, 48], help='Hidden layer dims of BDNP and inference nets')
-    parser.add_argument('--training_steps', type=int, default=50_000, help='The number of training steps')
-    parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
-    parser.add_argument('--final_learning_rate', type=float, default=1e-4, help='Final learning rate, linearly tempered')
+    parser.add_argument('--training_steps', type=int, default=100_000, help='The number of training steps')
+    parser.add_argument('--learning_rate', type=float, default=3e-3, help='(Initial) learning rate')
+    parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--loss_function', type=str, default='pp-avi', help='Objective function (vi or npvi)')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one is available')
 

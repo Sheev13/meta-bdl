@@ -136,6 +136,8 @@ def main(prior=None,
                         raise ValueError(f"pre-trained BDNP has unsupported type of prior for adoption into {model_name} BNN.")
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
+                # adopt learned likelihood noise too
+                model.likelihood.raw_sigmas.data = pretrained_bdnp.likelihood.raw_sigmas.data
 
         if model_name.lower() in ['mfvi', 'givi']:
             retain_graph = False
@@ -145,9 +147,9 @@ def main(prior=None,
             bdnp_minibatch_kwargs = {}
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=25_000,
+                                                       training_steps=75_000,
                                                        learning_rate=5e-3,
-                                                       final_learning_rate=5e-4,
+                                                       final_learning_rate=1e-4,
                                                        num_samples=8,
                                                        device_agnostic=True,
                                                        retain_graph=retain_graph,

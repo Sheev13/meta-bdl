@@ -22,10 +22,10 @@ def main(model: str = None,
     print("model: ", model, " seed: ", seed, "prior trainability: ", prior_trainability, "dataset: ", dataset)
 
     model = model.lower()
-    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp', 'new_bdnp'] # no conv(c/g)np since there are 7 > 3 input dims.
+    assert model in ['mfvi', 'givi', 'bdnp', 'np', 'bnp', 'ar-tnp'] # no conv(c/g)np since there are 7 > 3 input dims.
     if model in ['swag', 'mfvi', 'givi']:
         model_type = 'bnn'
-    elif model == 'bdnp' or model == 'new_bdnp':
+    elif model == 'bdnp':
         model_type = 'bdnp'
     else:
         model_type = 'np'
@@ -36,7 +36,7 @@ def main(model: str = None,
         raise ValueError("User failed to specify which dataset to use.")
     if seed is None:
         raise ValueError("User failed to specify which seed to use.")
-    if (model == 'bdnp' or model == 'new_bdnp') and (prior_trainability is None):
+    if (model == 'bdnp') and (prior_trainability is None):
         raise ValueError("User failed to specify how much of the BDNP prior to train.")
     if prior_trainability is not None:
         if prior_trainability < 0.0:
@@ -56,7 +56,7 @@ def main(model: str = None,
     torch.set_default_dtype(dtp)
 
     model_codename = model
-    if model == 'bdnp' or model == 'new_bdnp':
+    if model == 'bdnp':
         model_codename += f"_{prior_trainability}"
 
     PATH = str(Path(__file__).resolve().parent)
@@ -83,10 +83,10 @@ def main(model: str = None,
         dataset_metadata = json.load(f)
     x_dim = int(dataset_metadata["dimensionality"])
 
-    if model == 'bdnp' or model == 'new_bdnp':
+    if model == 'bdnp':
         model_kwargs = {'x_dim': x_dim,
                         'y_dim': 1,
-                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.5 if dataset == 'paul15' else 0.1, train=True),
+                        'likelihood': models.GaussianLikelihood(1, sigma_y=0.1, train=True),
                         'hidden_dims': architecture,
                         'prior_type': 1,
                         'inf_dims': architecture,
@@ -107,9 +107,8 @@ def main(model: str = None,
                            'final_learning_rate': 5e-5,
                            'num_samples': 16,
                            'loss_function': 'pp-avi',
-                           'ctxt_proportion_range': (0.1, 0.5),
+                           'ctxt_proportion_range': (0.1, 0.6),
                            'task_subsample_fraction': 0.5 if dataset == 'qm8' else None,
-                           'within_task_batch_size': 512 if dataset == 'qm8' else None,
                            'device_agnostic': True}
 
     elif model_type == 'bnn':
@@ -133,7 +132,7 @@ def main(model: str = None,
         elif model == 'givi':
             m = baselines.GIVIBNN(**model_kwargs)
 
-        training_kwargs = {'training_steps': 50_000 if model == 'givi' else 75_000,
+        training_kwargs = {'training_steps': 75_000,
                             'learning_rate': 5e-3,
                             'final_learning_rate': 1e-4,
                             'num_samples': 8,
@@ -168,7 +167,7 @@ def main(model: str = None,
                                'learning_rate': 5e-5,
                                'final_learning_rate': 1e-5,
                                'loss_function': 'mpl', # this is irrelevant, we just need one of the options that splits context and targets appropriately within train_meta_model
-                               'ctxt_proportion_range': (0.1, 0.5),
+                               'ctxt_proportion_range': (0.1, 0.6),
                                'task_subsample_fraction': 0.25 if dataset == 'qm8' else None,
                                'device_agnostic': True}
         
@@ -201,7 +200,7 @@ def main(model: str = None,
         md = torch.load(PATH + f"/data/{dataset}/train_sets.pt", weights_only=False)
         training_metrics = train_meta_model(m, md, **training_kwargs)
         with torch.no_grad():
-            if model == 'bdnp' or model == 'new_bdnp':
+            if model == 'bdnp':
                 pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps, batch_size=50)[0]
             elif model in ['np', 'bnp']:
                 pred_yt = m(Xt, Xc, yc, num_samples=num_predict_samps)

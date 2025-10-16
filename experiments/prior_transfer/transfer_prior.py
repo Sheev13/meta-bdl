@@ -208,7 +208,7 @@ def main(prior=None,
                 retain_graph = True
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
-                                                       training_steps=30_000,
+                                                       training_steps=75_000,
                                                        learning_rate=5e-3,
                                                        final_learning_rate=1e-4,
                                                        num_samples=8,
@@ -232,7 +232,7 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 5e-5 if function_type == 'heaviside' and prior != 'bnn' else 5e-5
                 steps = 5_000
                 burn = 2_000
                 thin = 50
@@ -252,12 +252,12 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 5e-5 if function_type == 'heaviside' and prior != 'bnn' else 5e-5
                 steps = 250_000
                 burn = 50_000
                 thin = 5_000
                 leapfrog_steps = 1
-            init_samples, _ = baselines.run_mcmc(model, Xc, yc, algorithm='hmc', steps=50, step_size=5e-4, metropolis_adjusted=True, leapfrog_steps=100)
+            # init_samples, _ = baselines.run_mcmc(model, Xc, yc, algorithm='hmc', steps=50, step_size=5e-4, metropolis_adjusted=True, leapfrog_steps=100)
             raw_samples, training_metrics = baselines.run_mcmc(model,
                                                                Xc,
                                                                yc,
@@ -267,7 +267,8 @@ def main(prior=None,
                                                                minibatch_size=None, # full-batch
                                                                metropolis_adjusted=True,
                                                                leapfrog_steps=leapfrog_steps,
-                                                               init_W=init_samples[-1,:])
+                                                            #    init_W=init_samples[-1,:],
+                                                               )
             
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here
             samples = burned_in_samples[::thin]
