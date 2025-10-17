@@ -21,7 +21,7 @@ cell_width = total_size[0]
 cell_height = total_size[1]# / 2
 
 
-def main(codename='echidna', swissless=True):
+def main(codename='firefly', swissless=True):
     methods = ['swag', 'mfvi', 'lmc', 'givi', 'bdnp', 'hmc']
     PATH = str(Path(__file__).resolve().parent)
     swsls = "_swissless" if swissless else ""
