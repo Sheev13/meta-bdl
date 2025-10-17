@@ -24,7 +24,7 @@ def random_window(total_l, window_l):
 def generate_synthetic_ecg_task(
     fs=200,
     duration=4.0,
-    hr_mean=45,
+    hr_mean=25,
     hr_std=0, # optionally remove this for easier meta-task
     noise=0.001,
     n_range=None
@@ -112,7 +112,7 @@ def main(codename: Optional[str] = None):
                                         ctxt_proportion_range=(0.002, 0.2),
                                         # task_subsample_fraction=0.25,
                                         device_agnostic=True,
-                                        beta=0.2,
+                                        beta=1.0,
                                        )
     
     torch.save(bdnp, PATH + f'/saved_models/bdnp-{codename}')
