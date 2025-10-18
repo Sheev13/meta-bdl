@@ -8,6 +8,6 @@
     "training_steps": 100000,
     "learning_rate": 0.003,
     "final_learning_rate": 5e-05,
-    "loss_function": "pp-avi",
+    "loss_function": "avi",
     "use_gpu": true
 }

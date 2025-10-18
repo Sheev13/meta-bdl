@@ -21,13 +21,12 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/image_completions/image_completions.py \
-    --codename malaysia \
-    --prev_codename ppavi \
+    --codename avi \
     --architecture 64 64 64 64 \
     --training_steps 250_000 \
     --num_samples 16 \
     --ctxt_proportion_range 0.01 0.6 \
-    --loss_function pp-avi \
-    --learning_rate 5e-5 \
-    --final_learning_rate 1e-6 \
+    --loss_function avi \
+    --learning_rate 5e-4 \
+    --final_learning_rate 1e-5 \
     --use_gpu

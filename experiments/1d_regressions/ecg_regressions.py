@@ -22,38 +22,35 @@ def random_window(total_l, window_l):
     return int(start), int(start+window_l)
 
 def generate_synthetic_ecg_task(
-    fs=200,
-    duration=4.0,
-    hr_mean=25,
-    hr_std=0, # optionally remove this for easier meta-task
+    fs=100,
     noise=0.001,
     n_range=None
 ):
     """Generate one synthetic ECG waveform and return (X, Y) torch tensors."""
+    d = 6.0
     signal = nk.ecg_simulate(
-        duration=duration*2,
+        duration=8.0,
         sampling_rate=fs,
-        heart_rate=max(hr_mean + np.random.randn() * hr_std, 30.0),
+        heart_rate=20,
         noise=noise,
         method='simple'
     )
+    signal -= np.mean(signal)
+    signal /= (2*np.max(signal))
 
-    n_tot = fs * duration * 2
-    n_wind = fs * duration
-    start_ind, end_ind = random_window(n_tot, n_wind)
-    signal = signal[start_ind:end_ind]
-    # signal  =signal[:int(n_wind)]
+    single_wave_block = signal[int(3.5*fs):int(6.5*fs)] # 3s long
+    zeros_block = np.concatenate(3*[signal[int(7.0*fs):]], axis=0) # 3s long
+    split = int(np.random.uniform(0.0, 3.0) * fs)
+    full = np.concatenate((zeros_block[:split], single_wave_block, zeros_block[split:]), axis=0)
 
     # normalize and convert to tensors
-    signal -= np.mean(signal)
-    signal /= (4*np.max(signal))
-    t = np.linspace(-duration/2, duration/2, len(signal), endpoint=False)
+    t = np.linspace(-d/2, d/2, len(full), endpoint=False)
     X = torch.tensor(t, dtype=torch.float64).unsqueeze(1)
-    Y = torch.tensor(signal, dtype=torch.float64).unsqueeze(1)
+    Y = torch.tensor(full, dtype=torch.float64).unsqueeze(1)
 
     if n_range is not None:
         n = torch.randint(low=min(n_range), high=max(n_range), size=(1,))
-        inds = torch.randperm(len(signal))[:n]
+        inds = torch.randperm(len(full))[:n]
         return X[inds], Y[inds]
 
     return X, Y
@@ -109,8 +106,7 @@ def main(codename: Optional[str] = None):
                                         final_learning_rate=5e-6,
                                         num_samples=16,
                                         loss_function='pp-avi',
-                                        ctxt_proportion_range=(0.002, 0.2),
-                                        # task_subsample_fraction=0.25,
+                                        ctxt_proportion_range=(2/600, 64/600),
                                         device_agnostic=True,
                                         beta=1.0,
                                        )
@@ -183,7 +179,7 @@ def main(codename: Optional[str] = None):
         plt.close()
 
     # many-datapoint samples:
-    test_md = [generate_synthetic_ecg_task(n_range=(50, 200)) for _ in range(10)]
+    test_md = [generate_synthetic_ecg_task(n_range=(20, 50)) for _ in range(10)]
     for i, (X, y) in enumerate(test_md):
         X_c, y_c = X.clone(), y.clone()
         with torch.no_grad():
