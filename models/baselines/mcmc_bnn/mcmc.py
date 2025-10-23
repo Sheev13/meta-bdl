@@ -70,7 +70,7 @@ def run_mcmc(model: MCMC_BNN,
                 X, Y, *current_stuff, *proposed_stuff, step_size=step_size
             )
             u = torch.rand((1,))
-            if u < log_alpha.exp():
+            if torch.log(u) < log_alpha.exp():
                 # accept the sample
                 accepted_stuff = proposed_stuff
                 acceptance_counter += 1
