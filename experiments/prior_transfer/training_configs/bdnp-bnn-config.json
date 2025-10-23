@@ -6,7 +6,7 @@
         48
     ],
     "num_test_sets": 16,
-    "function_type": "gp",
+    "function_type": "heaviside",
     "use_gpu": true,
     "use_shared_test_sets": true
 }

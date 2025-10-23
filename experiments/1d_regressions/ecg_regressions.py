@@ -103,9 +103,9 @@ def main(codename: Optional[str] = None):
                                         training_steps=500_000,
                                         batch_size=5,
                                         learning_rate=1e-3, # change to 1e-2 or 5e-3
-                                        final_learning_rate=5e-6,
-                                        num_samples=16,
-                                        loss_function='pp-avi',
+                                        final_learning_rate=5e-5,
+                                        num_samples=32,
+                                        loss_function='avi',
                                         ctxt_proportion_range=(2/600, 64/600),
                                         device_agnostic=True,
                                         beta=1.0,
@@ -125,7 +125,7 @@ def main(codename: Optional[str] = None):
     plt.close()
 
 
-    xs = torch.linspace(-2.0, 2.0, 250).unsqueeze(-1)
+    xs = torch.linspace(-3.0, 3.0, 250).unsqueeze(-1)
     samps = 25
 
     # x_lim = [0.0, 5.0]

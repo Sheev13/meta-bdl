@@ -134,7 +134,7 @@ def main(prior=None,
                         'scale_prior': True,
                         'nonlinearity': nl}
         if model_name.lower() == 'givi':
-            model_kwargs['num_inducing'] = 10
+            model_kwargs['num_inducing'] = 10 # change to 16 or 24
         elif model_name.lower() == 'swag':
             model_kwargs['K'] = 64
     
