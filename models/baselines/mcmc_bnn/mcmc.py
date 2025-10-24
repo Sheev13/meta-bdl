@@ -64,13 +64,19 @@ def run_mcmc(model: MCMC_BNN,
         if minibatch_size is not None:
             X, Y = subsample(full_X, full_Y, minibatch_size)
         metrics = defaultdict(float)
+        # sample momentum fresh each MCMC iteration
+        if algorithm == 'hmc':
+            current_P = torch.randn_like(W)   # sample P ~ N(0, I)
+            current_stuff = [W, current_P]    # pass this into get_proposal
         proposed_stuff = model.get_proposal(X, Y, *current_stuff, step_size=step_size, **hmc_kwargs)
+
+        # log_alpha = model.compute_log_acceptance(X, Y, W, current_P, *proposed_stuff) # chatgpt reckons use this...
         if metropolis_adjusted:
             log_alpha = model.compute_log_acceptance(
                 X, Y, *current_stuff, *proposed_stuff, step_size=step_size
             )
             u = torch.rand((1,))
-            if torch.log(u) < log_alpha.exp():
+            if u.log() < log_alpha:
                 # accept the sample
                 accepted_stuff = proposed_stuff
                 acceptance_counter += 1

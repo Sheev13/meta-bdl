@@ -3,6 +3,7 @@ from torch import nn
 from typing import List, Tuple
 from abc import ABC, abstractmethod
 from itertools import accumulate
+from tqdm import tqdm
 
 class MCMC_BNN_Layer(nn.Module):
     def __init__(self,
@@ -147,13 +148,17 @@ class MCMC_BNN(nn.Module, ABC):
         # quick optimisation loop to get MAP solution.
         W = nn.Parameter(torch.zeros((self.num_weights,)), requires_grad=True)
         opt = torch.optim.Adam([W], lr=5e-3)
-        for _ in range(5000):
+        pbar = tqdm(range(1000))
+        evo = []
+        for _ in pbar:
             opt.zero_grad()
             loss = self.U(X, Y, W)
-            loss = loss
             loss.backward()
+            opt.step()
+            pbar.set_postfix({'loss': loss.detach().item()})
+            evo.append(loss.detach().item())
         
-        return W.detach()
+        return W.detach(), evo
 
     
     @abstractmethod
@@ -190,7 +195,7 @@ class LMC_BNN(MCMC_BNN):
         prop_to_curr = self.compute_log_proposal_prob(
             X, Y, W_prop, W_curr, step_size=step_size
         )
-        return min(torch.tensor(0.0), U_prop - U_curr + prop_to_curr - curr_to_prop)
+        return torch.minimum(torch.tensor(0.0), U_prop - U_curr + prop_to_curr - curr_to_prop)
     
 
 
@@ -218,14 +223,10 @@ class HMC_BNN(MCMC_BNN):
                      step_size: float = 1e-4,
                      leapfrog_steps: int = 50,
                     ):
-        W_new = W
-        P_new = torch.randn_like(W)
-
+        W_new = W.clone()
+        P_new = P.clone()        # use the supplied momentum, do NOT re-sample here
         for _ in range(leapfrog_steps):
-            W_new, P_new = self.execute_leapfrog_step(
-                X, Y, W_new, P_new, step_size=step_size
-            )
-
+            W_new, P_new = self.execute_leapfrog_step(X, Y, W_new, P_new, step_size=step_size)
         return W_new, P_new
 
     def compute_hamiltonian(self,
@@ -251,4 +252,4 @@ class HMC_BNN(MCMC_BNN):
         curr_ham = self.compute_hamiltonian(X, Y, W_curr, P_curr)
         # if the leapfrog simulation is accurate enough,
         # the log acceptance probability should be zero due to energy conservation
-        return min(torch.tensor(0.0), curr_ham - prop_ham)
+        return torch.minimum(torch.tensor(0.0), curr_ham - prop_ham)
