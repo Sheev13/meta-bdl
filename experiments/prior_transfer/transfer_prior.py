@@ -232,9 +232,9 @@ def main(prior=None,
 
         elif model_name.lower() in ['lmc', 'hmc']:
             if model_name.lower() == 'hmc':
-                step_size = 5e-5 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 5e-4
                 steps = 5_000
-                burn = 2_000
+                burn = 500
                 thin = 50
                 leapfrog_steps = 100
             # else:
@@ -252,12 +252,12 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 5e-5 if function_type == 'heaviside' and prior != 'bnn' else 1e-4
+                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 5e-4
                 steps = 250_000
-                burn = 50_000
+                burn = 10_000
                 thin = 5_000
                 leapfrog_steps = 1
-            init_samples, _ = baselines.run_mcmc(model, Xc, yc, algorithm='hmc', steps=50, step_size=5e-4, metropolis_adjusted=True, leapfrog_steps=100)
+            init_sample, _ = model.get_map_sln(Xc, yc)
             raw_samples, training_metrics = baselines.run_mcmc(model,
                                                                Xc,
                                                                yc,
@@ -267,7 +267,7 @@ def main(prior=None,
                                                                minibatch_size=None, # full-batch
                                                                metropolis_adjusted=True,
                                                                leapfrog_steps=leapfrog_steps,
-                                                               init_W=init_samples[-1,:],
+                                                               init_W=init_sample,
                                                                )
             
             burned_in_samples = raw_samples[burn:] # do burn-in and thinning here

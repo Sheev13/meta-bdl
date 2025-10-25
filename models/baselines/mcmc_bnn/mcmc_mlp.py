@@ -4,6 +4,7 @@ from typing import List, Tuple
 from abc import ABC, abstractmethod
 from itertools import accumulate
 from tqdm import tqdm
+import sys
 
 class MCMC_BNN_Layer(nn.Module):
     def __init__(self,
@@ -148,7 +149,7 @@ class MCMC_BNN(nn.Module, ABC):
         # quick optimisation loop to get MAP solution.
         W = nn.Parameter(torch.zeros((self.num_weights,)), requires_grad=True)
         opt = torch.optim.Adam([W], lr=5e-3)
-        pbar = tqdm(range(1000))
+        pbar = tqdm(range(5000), file=sys.stdout)
         evo = []
         for _ in pbar:
             opt.zero_grad()
