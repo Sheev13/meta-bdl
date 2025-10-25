@@ -8,7 +8,7 @@ import warnings
 import sys
 
 def subsample(X: torch.Tensor, Y: torch.Tensor, b: int):
-    n = X.shape[-1] # number of datapoints
+    n = X.shape[0] # number of datapoints
     if b >= n:
         return X, Y
     inds = torch.randperm(n)
@@ -51,23 +51,25 @@ def run_mcmc(model: MCMC_BNN,
         W = model.sample_from_prior()
     else:
         W = init_W.clone()
-    if hmc:
-        P = torch.randn_like(W)
+    # if hmc:
+        # P = torch.randn_like(W)
 
     iter_pbar = tqdm(range(steps), file=sys.stdout)
     tracker = defaultdict(list)
     current_stuff = [W]
-    if hmc:
-        current_stuff.append(P)
+    # if hmc:
+    #     current_stuff.append(P)
 
     for step in iter_pbar:
         if minibatch_size is not None:
             X, Y = subsample(full_X, full_Y, minibatch_size)
         metrics = defaultdict(float)
         # sample momentum fresh each MCMC iteration
-        if algorithm == 'hmc':
+        if hmc:
             current_P = torch.randn_like(W)   # sample P ~ N(0, I)
             current_stuff = [W, current_P]    # pass this into get_proposal
+        else:
+            current_stuff = [W]
         proposed_stuff = model.get_proposal(X, Y, *current_stuff, step_size=step_size, **hmc_kwargs)
 
         # log_alpha = model.compute_log_acceptance(X, Y, W, current_P, *proposed_stuff) # chatgpt reckons use this...
@@ -87,14 +89,17 @@ def run_mcmc(model: MCMC_BNN,
             accepted_stuff = proposed_stuff
             acceptance_counter += 1
 
-        current_stuff = accepted_stuff
-        posterior_samples[step] = accepted_stuff[0]
-        if algorithm == 'hmc':
-            momenta[step] = accepted_stuff[1]
+        W = accepted_stuff[0].detach().clone()
+        if hmc:
+            P = accepted_stuff[1].detach().clone()
+
+        posterior_samples[step] = W
+        if hmc:
+            momenta[step] = P
 
         with torch.no_grad():
-            metrics["log-lik"] = model.log_likelihood(X, Y, posterior_samples[step]).item()
-            metrics["log-prior"] = model.log_prior(posterior_samples[step]).item()
+            metrics["log-lik"] = model.log_likelihood(X, Y, W).item()
+            metrics["log-prior"] = model.log_prior(W).item()
             metrics["log potential"] = - (metrics["log-lik"] + metrics["log-prior"])
         
             if metropolis_adjusted:

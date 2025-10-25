@@ -147,7 +147,7 @@ class MCMC_BNN(nn.Module, ABC):
     
     def get_map_sln(self, X: torch.Tensor, Y: torch.Tensor):
         # quick optimisation loop to get MAP solution.
-        W = nn.Parameter(torch.zeros((self.num_weights,)), requires_grad=True)
+        W = nn.Parameter(self.sample_from_prior(), requires_grad=True)
         opt = torch.optim.Adam([W], lr=5e-3)
         pbar = tqdm(range(5000), file=sys.stdout)
         evo = []
@@ -196,7 +196,7 @@ class LMC_BNN(MCMC_BNN):
         prop_to_curr = self.compute_log_proposal_prob(
             X, Y, W_prop, W_curr, step_size=step_size
         )
-        return torch.minimum(torch.tensor(0.0), U_prop - U_curr + prop_to_curr - curr_to_prop)
+        return torch.minimum(torch.tensor(0.0), - U_prop + U_curr + prop_to_curr - curr_to_prop)
     
 
 
