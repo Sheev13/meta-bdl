@@ -24,7 +24,7 @@ python experiments/era5_prior_transfer/learn_prior.py \
     --codename firefly \
     --architecture 64 64 64 \
     --nonlinearity relu \
-    --training_steps 150_000 \
+    --training_steps 250_000 \
     --learning_rate 1e-3 \
     --final_learning_rate 1e-5 \
     --use_gpu

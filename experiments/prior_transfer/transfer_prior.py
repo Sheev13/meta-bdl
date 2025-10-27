@@ -200,7 +200,7 @@ def main(prior=None,
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
                 # adopt learned likelihood noise too
-                model.likelihood.raw_sigmas.data = pretrained_bdnp.likelihood.raw_sigmas.data
+                # model.likelihood.raw_sigmas.data = pretrained_bdnp.likelihood.raw_sigmas.data
 
         if model_name.lower() in ['mfvi', 'givi'] or ((model_name.lower() == 'bdnp') and (prior.lower() == 'bnn')):
             retain_graph = False
@@ -252,7 +252,7 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 1e-4 if function_type == 'heaviside' and prior != 'bnn' else 5e-4
+                step_size = 5e-4 if function_type == 'heaviside' and prior != 'bnn' else 1e-3
                 steps = 250_000
                 burn = 10_000
                 thin = 5_000
