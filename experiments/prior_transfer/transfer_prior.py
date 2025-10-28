@@ -111,7 +111,8 @@ def main(prior=None,
     # if bdnp with bnn prior, treat it the same as other bnns
 
     if model_name.lower() == 'mfvi':
-        lik = models.GaussianLikelihood(1, sigma_y=0.1)
+        # lik = models.GaussianLikelihood(1, sigma_y=0.1)
+        lik = models.GaussianLikelihood(1, sigma_y=0.05)
     else:
         lik = models.GaussianLikelihood(1, sigma_y=0.05)
 
