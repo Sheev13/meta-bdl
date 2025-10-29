@@ -6,7 +6,9 @@
         48
     ],
     "num_test_sets": 16,
-    "function_type": "heaviside",
+    "function_type": "gp",
     "use_gpu": true,
-    "use_shared_test_sets": true
+    "use_shared_test_sets": true,
+    "fine_tune_bdnp": true
+} true
 }

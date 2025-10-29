@@ -43,6 +43,7 @@ def main(prior=None,
          function_type='sawtooth',
          use_gpu=False,
          use_shared_test_sets=False,
+         fine_tune_bdnp=True,
          ):
     
     args_dict = locals()
@@ -110,11 +111,7 @@ def main(prior=None,
     # if bdnp with fancy prior, do no training but just evaluate on tasks
     # if bdnp with bnn prior, treat it the same as other bnns
 
-    if model_name.lower() == 'mfvi':
-        # lik = models.GaussianLikelihood(1, sigma_y=0.1)
-        lik = models.GaussianLikelihood(1, sigma_y=0.05)
-    else:
-        lik = models.GaussianLikelihood(1, sigma_y=0.05)
+    lik = models.GaussianLikelihood(1, sigma_y=0.05)
 
     if 'bdnp' in model_name.lower():
         model_kwargs = {'x_dim': 1,
@@ -215,7 +212,7 @@ def main(prior=None,
                                                        num_samples=8,
                                                        device_agnostic=True,
                                                        retain_graph=retain_graph)
-
+            
             num_samples = 1000
             with torch.no_grad():
                 if model_name.lower() == 'bdnp':
@@ -229,6 +226,19 @@ def main(prior=None,
                 else:
                     pred_samps = model(xs, num_samples=100)
                     pred_yt = model(Xt, num_samples=num_samples)
+
+        elif ((model_name.lower() == 'bdnp') and (prior.lower() != 'bnn')) and fine_tune_bdnp:
+            scaled_sigma_y = torch.tensor(0.05 / model.likelihood.upper_bound)
+            model.likelihood.raw_sigmas.data = torch.log(scaled_sigma_y / (1 - scaled_sigma_y))
+            model.likelihood.raw_sigmas.requires_grad = False
+            model.trainable_prior(False)
+            training_metrics = train_variational_model(model,
+                                                       (Xc, yc),
+                                                       training_steps=75_000,
+                                                       learning_rate=8e-4,
+                                                       final_learning_rate=1e-4,
+                                                       num_samples=8,
+                                                       device_agnostic=True)
 
 
         elif model_name.lower() in ['lmc', 'hmc']:
@@ -295,9 +305,19 @@ def main(prior=None,
         if model_name.lower() == 'bdnp' and prior != 'bnn':
             num_samples = 1000
             with torch.no_grad():
-                if model_name.lower() == 'bdnp':
-                    pred_samps = model(xs, Xc, yc, num_samples=100)[0]
-                    pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+                pred_samps = model(xs, Xc, yc, num_samples=100)[0]
+                pred_yt = model(Xt, Xc, yc, num_samples=num_samples)[0]
+            if fine_tune_bdnp:
+                fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
+                omitted_steps = 0
+                for i, (key, value) in enumerate(training_metrics.items()):
+                    axes[i].plot(value[omitted_steps:])
+                    axes[i].set_xlabel(key)
+                    axes[i].grid()
+
+                plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pdfs/{j}/tuning.pdf", bbox_inches="tight")
+                plt.savefig(PATH + f"/{function_type}/{model_name}/{prior}/figs/pngs/{j}/tuning.png", bbox_inches="tight")
+                plt.close()
 
         
         else:        ###### plot training metrics for all other models (i.e. not the pre-trained BDNP case) ######

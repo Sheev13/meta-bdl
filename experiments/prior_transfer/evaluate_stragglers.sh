@@ -3,7 +3,7 @@
 #SBATCH --job-name=prior_transfer_array
 #SBATCH --output=experiments/prior_transfer/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/prior_transfer/slurm_logs/%A_%a.err
-#SBATCH --array=0,5,6,11,12,17,18,23,24,29,30,35
+#SBATCH --array=20
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
