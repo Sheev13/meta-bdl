@@ -43,7 +43,7 @@ def main(prior=None,
          function_type='sawtooth',
          use_gpu=False,
          use_shared_test_sets=False,
-         fine_tune_bdnp=True,
+         fine_tune_bdnp=False,
          ):
     
     args_dict = locals()
