@@ -119,7 +119,7 @@ def main(prior=None,
 
         # initialise model if not pretrained BDNP
         if model_name.lower() != 'bdnp':
-            lik = models.GaussianLikelihood(1, sigma_y=0.1, train=True if model_name.lower() == 'givi' else False)
+            lik = models.GaussianLikelihood(1, sigma_y=0.05, train=True if model_name.lower() == 'givi' else False)
             model_kwargs['likelihood'] = lik
             model = model_class(**model_kwargs)
             # adopt prior if using pre-trained one.
@@ -136,8 +136,6 @@ def main(prior=None,
                         raise ValueError(f"pre-trained BDNP has unsupported type of prior for adoption into {model_name} BNN.")
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
-                # adopt learned likelihood noise too
-                model.likelihood.raw_sigmas.data = pretrained_bdnp.likelihood.raw_sigmas.data
 
         if model_name.lower() in ['mfvi', 'givi']:
             retain_graph = False
@@ -183,7 +181,7 @@ def main(prior=None,
             #                             metropolis_adjusted=True,
             #                             leapfrog_steps=100) # leapfrog_steps is silently ignored for LMC
             else:
-                step_size = 1e-4
+                step_size = 5e-4
                 steps = 200_000
                 burn = 50_000
                 thin = 2_500
@@ -195,7 +193,7 @@ def main(prior=None,
                                                                algorithm='hmc', # LMC code is buggy, so we do HMC with 1 leapfrog step for LMC
                                                                steps=steps,
                                                                step_size=step_size,
-                                                               minibatch_size=128, # SG (HMC/LD)
+                                                               minibatch_size=128, # SG-(HMC/LD)
                                                                metropolis_adjusted=False,
                                                                leapfrog_steps=leapfrog_steps)
             
