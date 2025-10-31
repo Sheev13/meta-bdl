@@ -47,7 +47,7 @@ def main(codename='firefly', swissless=True):
                 FileNotFoundError
             try:
                 with open(PATH + f"/{method}/{codename}/results{swsls}.json", "r") as f:
-                    learned_prior_results = json.load(f)[metric]   
+                    learned_prior_results = json.load(f)[metric]
                 m_learn = np.mean(learned_prior_results)
                 se_learn = np.std(learned_prior_results, ddof=1) / np.sqrt(len(learned_prior_results))
                 ax.errorbar(positions[j]+width/2, m_learn, yerr=se_learn, fmt='D',
