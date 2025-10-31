@@ -119,7 +119,7 @@ def main(prior=None,
 
         # initialise model if not pretrained BDNP
         if model_name.lower() != 'bdnp':
-            lik = models.GaussianLikelihood(1, sigma_y=0.05, train=True if model_name.lower() == 'givi' else False)
+            lik = models.GaussianLikelihood(1, sigma_y=0.05)
             model_kwargs['likelihood'] = lik
             model = model_class(**model_kwargs)
             # adopt prior if using pre-trained one.

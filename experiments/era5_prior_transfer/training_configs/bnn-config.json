@@ -6,7 +6,7 @@
         64
     ],
     "nonlinearity": "relu",
-    "training_steps": 50000,
+    "training_steps": 250000,
     "learning_rate": 0.001,
     "final_learning_rate": 1e-05,
     "use_gpu": true,

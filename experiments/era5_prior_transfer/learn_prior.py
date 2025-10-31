@@ -17,7 +17,7 @@ from base_networks.base_architectures import Sin, SharpTanh
 
 
 def init_bdnp(architecture=[48, 48], nonlinearity='silu'):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=True)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=False)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -52,13 +52,13 @@ def init_bdnp(architecture=[48, 48], nonlinearity='silu'):
     
 def main(codename=None,
          architecture=[48, 48],
-         nonlinearity='silu',
+         nonlinearity='relu',
          training_steps=30_000,
          learning_rate=5e-3,
          final_learning_rate=5e-5,
          use_gpu=False,
          bnn_prior=False,
-         use_pretrained=False,
+         old_codename=None,
         ):
     args_dict = locals()
 
@@ -76,35 +76,40 @@ def main(codename=None,
 
     PATH = str(Path(__file__).resolve().parent)
 
-    if use_pretrained:
-        bdnp = torch.load(PATH + f'/saved_models/{codename}')
-        md = torch.load(PATH + "/data/train_sets.pt", weights_only=False, map_location="cpu")
+    Path(PATH + "/saved_models").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/training_configs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/bnn").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/bnn/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/bnn/pngs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/{codename}/pngs").mkdir(parents=True, exist_ok=True)
 
+    with open(PATH + f"/training_configs/{codename}-config.json", 'w') as f:
+        json.dump(args_dict, f, indent=4)
+
+    md = torch.load(PATH + "/data/train_sets.pt", weights_only=False, map_location="cpu")
+
+    if old_codename is not None:
+        bdnp = torch.load(PATH + f'/saved_models/{old_codename}')
     else:
-
-        Path(PATH + "/saved_models").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/training_configs").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/bnn").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/bnn/pdfs").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/bnn/pngs").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/{codename}").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/{codename}/pdfs").mkdir(parents=True, exist_ok=True)
-        Path(PATH + f"/figs/{codename}/pngs").mkdir(parents=True, exist_ok=True)
-
-        with open(PATH + f"/training_configs/{codename}-config.json", 'w') as f:
-            json.dump(args_dict, f, indent=4)
-
-        md = torch.load(PATH + "/data/train_sets.pt", weights_only=False, map_location="cpu")
-
         bdnp = init_bdnp(
             architecture=architecture,
             nonlinearity=nonlinearity,
         )
-        if not bnn_prior:
-            bdnp.trainable_prior(True)
 
-        ######## visualise prior predictive samples with standard guff prior ########
+    if bnn_prior:
+        bdnp.trainable_prior(False)
+    elif old_codename is not None:
+        bdnp.trainable_prior(False) # change this if we want to fine-tune the prior too)
+        bdnp.likelihood.raw_sigmas.data = torch.log(torch.tensor(0.05)) # set observation noise to 0.05
+        bdnp.likelihood.raw_sigmas.requires_grad = False
+    else:
+        bdnp.trainable_prior(True)
+
+    ######## visualise prior predictive samples with standard guff prior ########
+    if old_codename is None:
         for i in range(20):
             X_normed, _ = md[torch.randint(low=0, high=len(md), size=(1,))]
             X_normed_dev = X_normed.to(device)
@@ -129,36 +134,36 @@ def main(codename=None,
             plt.savefig(PATH + f"/figs/bnn/pdfs/{i}.pdf", bbox_inches="tight")
             plt.close()
 
-        ############# okay now train ###########
+    ############# okay now train ###########
 
-        training_metrics = train_meta_model(
-            bdnp,
-            md,
-            training_steps=training_steps,
-            batch_size=5,
-            learning_rate=learning_rate,
-            final_learning_rate=final_learning_rate,
-            num_samples=24,
-            loss_function='pp-avi',
-            ctxt_proportion_range=(0.01, 0.5),
-            # within_task_batch_size=512,
-            task_subsample_fraction=0.25,
-            device_agnostic=True,
-            dataset_on_cpu=True,
-        )
+    training_metrics = train_meta_model(
+        bdnp,
+        md,
+        training_steps=training_steps,
+        batch_size=5,
+        learning_rate=learning_rate,
+        final_learning_rate=final_learning_rate,
+        num_samples=8,
+        loss_function='avi',
+        ctxt_proportion_range=(0.01, 0.99),
+        # within_task_batch_size=512,
+        task_subsample_fraction=0.25,
+        device_agnostic=True,
+        dataset_on_cpu=True,
+    )
 
-        torch.save(bdnp, PATH + f'/saved_models/{codename}')
+    torch.save(bdnp, PATH + f'/saved_models/{codename}')
 
-        fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
-        omitted_steps = 100
-        for i, (key, value) in enumerate(training_metrics.items()):
-            axes[i].plot(value[omitted_steps:])
-            axes[i].set_xlabel(key)
-            axes[i].grid()
+    fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
+    omitted_steps = 100
+    for i, (key, value) in enumerate(training_metrics.items()):
+        axes[i].plot(value[omitted_steps:])
+        axes[i].set_xlabel(key)
+        axes[i].grid()
 
-        plt.savefig(PATH + f"/figs/{codename}/pdfs/training.pdf", bbox_inches="tight")
-        plt.savefig(PATH + f"/figs/{codename}/pngs/training.png", bbox_inches="tight")
-        plt.close()
+    plt.savefig(PATH + f"/figs/{codename}/pdfs/training.pdf", bbox_inches="tight")
+    plt.savefig(PATH + f"/figs/{codename}/pngs/training.png", bbox_inches="tight")
+    plt.close()
 
     ##################### visualise prior predictive samples with trained prior ##############
     for i in range(20):
@@ -197,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU if one available. Default False.')
     parser.add_argument('--bnn_prior', action='store_true', help='Whether to fix prior to BNN standard one. Default False.')
-    parser.add_argument('--use_pretrained', action='store_true', help='Use a pretrained BDNP with matching codename. Default False.')
+    parser.add_argument('--old_codename', type=str, default=None, help='Initialise from pretrained BDNP with this codename. Default False.')
 
     args = parser.parse_args()
     main(**vars(args))

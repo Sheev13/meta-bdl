@@ -21,10 +21,11 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/era5_prior_transfer/learn_prior.py \
-    --codename firefly \
+    --codename gecko \
     --architecture 64 64 64 \
     --nonlinearity relu \
-    --training_steps 250_000 \
-    --learning_rate 1e-3 \
+    --training_steps 100_000 \
+    --learning_rate 1e-4 \
     --final_learning_rate 1e-5 \
+    --old_codename firefly \
     --use_gpu
