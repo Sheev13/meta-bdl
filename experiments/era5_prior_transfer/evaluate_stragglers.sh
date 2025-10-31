@@ -3,7 +3,7 @@
 #SBATCH --job-name=era5_transfer
 #SBATCH --output=experiments/era5_prior_transfer/slurm_logs/%A_%a.out
 #SBATCH --error=experiments/era5_prior_transfer/slurm_logs/%A_%a.err
-#SBATCH --array=8
+#SBATCH --array=2,8
 
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
@@ -21,7 +21,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 models=("mfvi" "givi" "bdnp" "lmc" "hmc" "swag")
-priors=("bnn" "gecko")
+priors=("bnn" "firefly")
 
 num_models=${#models[@]}
 model_idx=$(( SLURM_ARRAY_TASK_ID % num_models ))

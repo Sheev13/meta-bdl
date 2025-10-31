@@ -142,7 +142,6 @@ def main(prior=None,
             if model_name.lower() == 'givi':
                 retain_graph = True
                 model.init_inducing_points(Xc)
-            bdnp_minibatch_kwargs = {}
             training_metrics = train_variational_model(model,
                                                        (Xc, yc),
                                                        training_steps=75_000,
@@ -150,8 +149,7 @@ def main(prior=None,
                                                        final_learning_rate=1e-4,
                                                        num_samples=8,
                                                        device_agnostic=True,
-                                                       retain_graph=retain_graph,
-                                                       **bdnp_minibatch_kwargs)
+                                                       retain_graph=retain_graph)
 
             num_samples = 1000
             with torch.no_grad():
@@ -218,36 +216,39 @@ def main(prior=None,
                 pred_yt = model.bma_forward(Xt, num_samples=num_samples)
     
 
-
         ## handle pre-trained bdnp ##
-        if model_name.lower() == 'bdnp':
+        elif model_name.lower() == 'bdnp':
+            # fine-tune
+            model.likelihood.raw_sigmas.data = torch.log(torch.tensor(0.05)) # set observation noise to 0.05
+            model.likelihood.raw_sigmas.requires_grad = False
+            training_metrics = train_variational_model(model,
+                                            (Xc, yc),
+                                            training_steps=50_000,
+                                            learning_rate=1e-3,
+                                            final_learning_rate=1e-4,
+                                            num_samples=8,
+                                            device_agnostic=True)
+
             num_samples = 1000
             with torch.no_grad():
                 pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]
                 pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=50)[0]
 
-        
-        else:        ###### plot training metrics for all other models (i.e. not the pre-trained BDNP case) ######
-            fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
-            omitted_steps = 0
-            for i, (key, value) in enumerate(training_metrics.items()):
-                axes[i].plot(value[omitted_steps:])
-                axes[i].set_xlabel(key)
-                axes[i].grid()
-                if key == 'elbo':
-                    axes[i].set_ylim([-5000, 500])
-                elif key == 'e_ll':
-                    axes[i].set_ylim([-4000, 1000])
-                elif key == 'kl':
-                    axes[i].set_ylim([0, 2000])
 
-            if swissless:
-                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/training.pdf", bbox_inches="tight")
-                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/training.png", bbox_inches="tight")
-            else:
-                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
-                plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
-            plt.close()
+        fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
+        omitted_steps = 100
+        for i, (key, value) in enumerate(training_metrics.items()):
+            axes[i].plot(value[omitted_steps:])
+            axes[i].set_xlabel(key)
+            axes[i].grid()
+
+        if swissless:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}_swissless/training.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}_swissless/training.png", bbox_inches="tight")
+        else:
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pdfs/{j}/training.pdf", bbox_inches="tight")
+            plt.savefig(PATH + f"/{model_name}/{prior}/figs/pngs/{j}/training.png", bbox_inches="tight")
+        plt.close()
 
         if model_name.lower() == 'swag':
             fig, axes = plt.subplots(1, len(pretraining_metrics), figsize=(3*len(pretraining_metrics), 1))

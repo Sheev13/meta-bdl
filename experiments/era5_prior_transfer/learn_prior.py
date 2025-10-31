@@ -17,7 +17,7 @@ from base_networks.base_architectures import Sin, SharpTanh
 
 
 def init_bdnp(architecture=[48, 48], nonlinearity='silu'):
-    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=False)
+    lik = models.GaussianLikelihood(y_dim=1, sigma_y=0.05, train=True)
 
     if nonlinearity.lower() == 'relu':
         nl = torch.nn.ReLU()
@@ -143,9 +143,9 @@ def main(codename=None,
         batch_size=5,
         learning_rate=learning_rate,
         final_learning_rate=final_learning_rate,
-        num_samples=8,
-        loss_function='avi',
-        ctxt_proportion_range=(0.01, 0.99),
+        num_samples=24,
+        loss_function='pp-avi',
+        ctxt_proportion_range=(0.01, 0.5),
         # within_task_batch_size=512,
         task_subsample_fraction=0.25,
         device_agnostic=True,
