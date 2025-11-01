@@ -137,6 +137,9 @@ def main(prior=None,
                     layerwise_priors.append((m, S))
                 model.adopt_prior(layerwise_priors)
 
+        elif model_name.lower() == 'bdnp':
+            model = torch.load(PATH + f'/saved_models/{prior}', weights_only=False)
+
         if model_name.lower() in ['mfvi', 'givi']:
             retain_graph = False
             if model_name.lower() == 'givi':
@@ -223,8 +226,8 @@ def main(prior=None,
             model.likelihood.raw_sigmas.requires_grad = False
             training_metrics = train_variational_model(model,
                                             (Xc, yc),
-                                            training_steps=50_000,
-                                            learning_rate=1e-3,
+                                            training_steps=25_000,
+                                            learning_rate=5e-4,
                                             final_learning_rate=1e-4,
                                             num_samples=8,
                                             device_agnostic=True)
