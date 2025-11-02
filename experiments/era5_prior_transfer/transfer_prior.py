@@ -231,11 +231,6 @@ def main(prior=None,
 
             num_samples = 1000
             with torch.no_grad():
-                # below minibatching could be source of performance lag??
-    ####################################################################################################################################
-                # pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]
-                # pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=50)[0]
-    ####################################################################################################################################
                 pred_samps = model(xs, Xc, yc, num_samples=100)[0]
                 pred_yt = torch.zeros((1000, Xt.shape[0], 1))
                 for p in range(10):
