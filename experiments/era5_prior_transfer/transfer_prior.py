@@ -86,10 +86,6 @@ def main(prior=None,
     elif model_name == 'swag':
         model_class = baselines.SWAG_BNN
 
-    if model_name.lower() == 'bdnp':
-        model = torch.load(PATH + f'/saved_models/{prior}', weights_only=False)
-
-
     ######## Evaluation time mothafucka ########
 
     torch.manual_seed(69)
@@ -222,6 +218,7 @@ def main(prior=None,
         ## handle pre-trained bdnp ##
         elif model_name.lower() == 'bdnp':
             # fine-tune
+            model.trainable_prior(False)
             model.likelihood.raw_sigmas.data = torch.log(torch.tensor(0.05)) # set observation noise to 0.05
             model.likelihood.raw_sigmas.requires_grad = False
             training_metrics = train_variational_model(model,
@@ -234,9 +231,16 @@ def main(prior=None,
 
             num_samples = 1000
             with torch.no_grad():
-                pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]
-                pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=50)[0]
-
+                # below minibatching could be source of performance lag??
+    ####################################################################################################################################
+                # pred_samps = model(xs, Xc, yc, num_samples=100, batch_size=50)[0]
+                # pred_yt = model(Xt, Xc, yc, num_samples=num_samples, batch_size=50)[0]
+    ####################################################################################################################################
+                pred_samps = model(xs, Xc, yc, num_samples=100)[0]
+                pred_yt = torch.zeros((1000, Xt.shape[0], 1))
+                for p in range(10):
+                    with torch.no_grad():
+                        pred_yt[p*100:(p+1)*100,:,:] = model(Xt, Xc, yc, num_samples=100)[0]
 
         fig, axes = plt.subplots(1, len(training_metrics), figsize=(3*len(training_metrics), 1))
         omitted_steps = 100
