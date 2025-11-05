@@ -4,6 +4,8 @@ from tueplots import bundles
 from tqdm import tqdm
 import sys
 from pathlib import Path
+import neurokit2 as nk
+import numpy as np
 root_dir = Path(__file__).resolve().parents[2]  # two levels up
 sys.path.insert(0, str(root_dir))
 import argparse
@@ -55,8 +57,42 @@ def bnn_function(x_range=[-4.0, 4.0], n=200, hidden_dims=[128, 128], scale_prior
 
     return X.squeeze(), f_x.squeeze()
 
+def ecg_function(
+    fs=100,
+    noise=0.001,
+    n_range=None
+):
+    """Generate one synthetic ECG waveform and return (X, Y) torch tensors."""
+    d = 6.0
+    signal = nk.ecg_simulate(
+        duration=8.0,
+        sampling_rate=fs,
+        heart_rate=20,
+        noise=noise,
+        method='simple'
+    )
+    signal -= np.mean(signal)
+    signal /= (2*np.max(signal))
+
+    single_wave_block = signal[int(3.5*fs):int(6.5*fs)] # 3s long
+    zeros_block = np.concatenate(3*[signal[int(7.0*fs):]], axis=0) # 3s long
+    split = int(np.random.uniform(0.0, 3.0) * fs)
+    full = np.concatenate((zeros_block[:split], single_wave_block, zeros_block[split:]), axis=0)
+
+    # normalize and convert to tensors
+    t = np.linspace(-d/2, d/2, len(full), endpoint=False)
+    X = torch.tensor(t, dtype=torch.float64).unsqueeze(1)
+    Y = torch.tensor(full, dtype=torch.float64).unsqueeze(1)
+
+    if n_range is not None:
+        n = torch.randint(low=min(n_range), high=max(n_range), size=(1,))
+        inds = torch.randperm(len(full))[:n]
+        return X[inds], Y[inds]
+
+    return X, Y
+
 def get_function_samples(function, num_samples=100, granularity=200):
-    assert function.lower() in ['sawtooth', 'heaviside', 'bnn']
+    assert function.lower() in ['sawtooth', 'heaviside', 'bnn', 'ecg']
     if function.lower() == 'sawtooth':
         func_kwargs = {'x_range': [-2.0, 2.0],
                        'p': 0.75,
@@ -69,9 +105,12 @@ def get_function_samples(function, num_samples=100, granularity=200):
     elif function.lower() == 'heaviside':
         func_kwargs = {'x_range': [-4.0, 4.0], 'l': 1, 'n': granularity}
         func = heaviside_function
-    else:
+    elif function.lower() == 'bnn':
         func_kwargs = {'x_range': [-4.0, 4.0], 'n': granularity}
         func = bnn_function
+    elif function.lower() == 'ecg':
+        func_kwargs = {'noise': 0.0}
+        func = ecg_function
 
     func_samps = [func(**func_kwargs) for _ in range(num_samples)]
 
@@ -81,20 +120,20 @@ def get_function_samples(function, num_samples=100, granularity=200):
 
 def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sawtooth', x_range=[-5.0, 5.0], **bnn_kwargs):
     md = []
-    assert function_type.lower() in ['sawtooth', 'gp', 'heaviside', 'bnn']
+    assert function_type.lower() in ['sawtooth', 'ecg', 'heaviside', 'bnn']
 
     if function_type.lower() == 'sawtooth':
         dataset_func = obtain_me_a_nice_sawtooth_dataset_please
         data_hypers = {'p': 0.75, 'm': 1.33, 'random_linear': True, 'x_range': [-2.0, 2.0]}
-    elif function_type.lower() == 'gp':
-        dataset_func = obtain_me_a_nice_gp_dataset_please
-        data_hypers = {'l': 0.5, 'kernel': 'se', 'x_range': x_range}
     elif function_type.lower() == 'heaviside':
         dataset_func = obtain_me_a_nice_heaviside_dataset_please
         data_hypers = {'x_range': x_range, 'l': 1, 'noise': 0.01}
     elif function_type.lower() == 'bnn':
         dataset_func = obtain_me_a_nice_bnn_dataset_please
         data_hypers = {'x_range': x_range, **bnn_kwargs}
+    elif function_type.lower() == 'ecg':
+        dataset_func = ecg_function
+        data_hypers = {}
 
     for _ in range(num_datasets):
         X, y = dataset_func(n_range=n_range, **data_hypers)
@@ -122,8 +161,11 @@ def main():
     Path(PATH + f"/figs/results/heaviside").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/results/heaviside/pngs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/results/heaviside/pdfs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/results/ecg").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/results/ecg/pngs").mkdir(parents=True, exist_ok=True)
+    Path(PATH + f"/figs/results/ecg/pdfs").mkdir(parents=True, exist_ok=True)
 
-    for codename, function_type in zip(['peter', 'rosamund', 'sigrid'], ['sawtooth', 'bnn', 'heaviside']):
+    for codename, function_type in zip(['ursula', 'vincent', 'thomas', 'walter'], ['sawtooth', 'bnn', 'heaviside', 'ecg']):
         bdnp = torch.load(PATH + f'/saved_models/bdnp-{codename}', weights_only=False, map_location=torch.device('cpu'))
     
         xs = torch.linspace(-4.0, 4.0, 250).unsqueeze(-1)
@@ -135,9 +177,12 @@ def main():
         elif function_type == 'heaviside':
             x_lim = [-4.0, 4.0]
             y_lim = [-2.0, 2.0]
-        else:
+        elif function_type == 'bnn':
             x_lim = [-4.0, 4.0]
             y_lim = [-4.0, 4.0]
+        elif function_type == 'ecg':
+            x_lim = [-2.5, 2.0]
+            y_lim = [-0.6, 1.0]
 
         
         # true DGP samples:
@@ -150,6 +195,7 @@ def main():
         ax.set_ylim(y_lim)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
+        ax.tick_params(axis='both', which='both', length=0)
         plt.savefig(PATH + f"/figs/results/{function_type}/pngs/dgp.png", bbox_inches="tight")
         plt.savefig(PATH + f"/figs/results/{function_type}/pdfs/dgp.pdf", bbox_inches="tight")
         plt.close()
@@ -165,13 +211,14 @@ def main():
         ax.set_ylim(y_lim)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
+        ax.tick_params(axis='both', which='both', length=0)
         plt.savefig(PATH + f"/figs/results/{function_type}/pngs/prior-predictive.png", bbox_inches="tight")
         plt.savefig(PATH + f"/figs/results/{function_type}/pdfs/prior-predictive.pdf", bbox_inches="tight")
         plt.close()
 
         # posterior stuff
         test_md = build_meta_dataset(num_datasets=5,
-                                    n_range=[3, 4],
+                                    n_range=[30, 31] if function_type == 'ecg' else [3, 4],
                                     function_type=function_type,
                                     x_range=[-1.75, 1.75] if function_type == 'sawtooth' else [-3.5, 3.5],
                                     )
@@ -180,7 +227,10 @@ def main():
             Path(PATH + f"/figs/results/{function_type}/pngs/{i}").mkdir(parents=True, exist_ok=True)
             Path(PATH + f"/figs/results/{function_type}/pdfs/{i}").mkdir(parents=True, exist_ok=True)
             for j in range(1, 4):
-                X_c, y_c = X.clone()[0:j,:], y.clone()[0:j,:]
+                if function_type == 'ecg':
+                    X_c, y_c = X.clone()[0:int(10*j),:], y.clone()[0:int(10*j),:]
+                else:
+                    X_c, y_c = X.clone()[0:j,:], y.clone()[0:j,:]
                 with torch.no_grad():
                     pred_samps = bdnp(xs, X_c, y_c, num_samples=samps)[0]
                 fig, ax = plt.subplots(1, 1, figsize=(cell_width, cell_height))
@@ -191,6 +241,7 @@ def main():
                 ax.set_ylim(y_lim)
                 ax.set_xticklabels([])
                 ax.set_yticklabels([])
+                ax.tick_params(axis='both', which='both', length=0)
                 plt.savefig(PATH + f"/figs/results/{function_type}/pngs/{i}/{j}-points.png", bbox_inches="tight")
                 plt.savefig(PATH + f"/figs/results/{function_type}/pdfs/{i}/{j}-points.pdf", bbox_inches="tight")
                 plt.close()
