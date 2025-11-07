@@ -1,0 +1,21 @@
+{   "codename": "xavier",
+    "function_type": "ecg",
+    "architecture": [
+        64,
+        64
+    ],
+    "nonlinearity": "tanh",
+    "trainable_likelihood_noise": true,
+    "init_likelihood_noise": 0.05,
+    "training_steps": 500000,
+    "batch_size": 5,
+    "learning_rate": 1e-3,
+    "final_learning_rate": 5e-5,
+    "loss_function": "pp-avi",
+    "beta": 1.0,
+    "num_samples": 24,
+    "ctxt_proportion_range": [
+        0.0033333333, 
+        0.1066666666
+    ]
+}

@@ -93,8 +93,7 @@ def main(codename: Optional[str] = None):
                        inf_dims=architecture,
                        use_final_layer_targets=True,
                        scale_prior=True,
-                    #    nonlinearity=Sin(),
-                       nonlinearity = torch.nn.SiLU(),
+                       nonlinearity = torch.nn.Tanh(),
                       )
     bdnp.trainable_prior(True)
 
@@ -104,8 +103,8 @@ def main(codename: Optional[str] = None):
                                         batch_size=5,
                                         learning_rate=1e-3, # change to 1e-2 or 5e-3
                                         final_learning_rate=5e-5,
-                                        num_samples=32,
-                                        loss_function='avi',
+                                        num_samples=24,
+                                        loss_function='pp-avi',
                                         ctxt_proportion_range=(2/600, 64/600),
                                         device_agnostic=True,
                                         beta=1.0,

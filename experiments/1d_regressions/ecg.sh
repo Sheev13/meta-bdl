@@ -3,9 +3,9 @@
 #SBATCH --partition=gpu_p
 #SBATCH --qos=gpu_normal
 #SBATCH --mem=64G
-#SBATCH --constraint=a100_80gb|h100_80gb
+#SBATCH --constraint=h100_80gb
 #SBATCH --cpus-per-task=2
-#SBATCH --time=20:00:00
+#SBATCH --time=24:00:00
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 #SBATCH --nice=100
@@ -21,4 +21,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 # Run your script with arguments
-python experiments/1d_regressions/ecg_regressions.py --codename walter
+python experiments/1d_regressions/ecg_regressions.py --codename xavier
