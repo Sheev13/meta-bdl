@@ -165,7 +165,7 @@ def main():
     Path(PATH + f"/figs/results/ecg/pngs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/results/ecg/pdfs").mkdir(parents=True, exist_ok=True)
 
-    for codename, function_type in zip(['ursula', 'vincent', 'thomas', 'walter'], ['sawtooth', 'bnn', 'heaviside', 'ecg']):
+    for codename, function_type in zip(['ursula', 'vincent', 'thomas', 'xavier'], ['sawtooth', 'bnn', 'heaviside', 'ecg']):
         bdnp = torch.load(PATH + f'/saved_models/bdnp-{codename}', weights_only=False, map_location=torch.device('cpu'))
     
         xs = torch.linspace(-4.0, 4.0, 250).unsqueeze(-1)
