@@ -21,4 +21,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate bdnp-environment
 
 # Run your script with arguments
-python experiments/1d_regressions/ecg_regressions.py --codename xavier
+python experiments/1d_regressions/ecg_regressions.py --codename zadok --preload xavier
