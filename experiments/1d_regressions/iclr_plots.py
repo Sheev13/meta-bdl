@@ -60,7 +60,8 @@ def bnn_function(x_range=[-4.0, 4.0], n=200, hidden_dims=[128, 128], scale_prior
 def ecg_function(
     fs=100,
     noise=0.001,
-    n_range=None
+    n_range=None,
+    x_range=None,
 ):
     """Generate one synthetic ECG waveform and return (X, Y) torch tensors."""
     d = 6.0
@@ -84,10 +85,15 @@ def ecg_function(
     X = torch.tensor(t, dtype=torch.float64).unsqueeze(1)
     Y = torch.tensor(full, dtype=torch.float64).unsqueeze(1)
 
+    if x_range is not None:
+        gooduns = ((X >= min(x_range)) & (X <= max(x_range)))
+        X = X[gooduns]
+        Y = Y[gooduns]
+
     if n_range is not None:
-        n = torch.randint(low=min(n_range), high=max(n_range), size=(1,))
-        inds = torch.randperm(len(full))[:n]
-        return X[inds], Y[inds]
+        n = torch.randint(low=min(n_range), high=min(max(n_range), X.shape[0]), size=(1,))
+        inds = torch.randperm(X.shape[0])[:n]
+        return X[inds].unsqueeze(-1), Y[inds].unsqueeze(-1)
 
     return X, Y
 
@@ -133,7 +139,7 @@ def build_meta_dataset(num_datasets=10_000, n_range=[40, 100], function_type='sa
         data_hypers = {'x_range': x_range, **bnn_kwargs}
     elif function_type.lower() == 'ecg':
         dataset_func = ecg_function
-        data_hypers = {}
+        data_hypers = {'x_range': x_range}
 
     for _ in range(num_datasets):
         X, y = dataset_func(n_range=n_range, **data_hypers)
@@ -165,11 +171,9 @@ def main():
     Path(PATH + f"/figs/results/ecg/pngs").mkdir(parents=True, exist_ok=True)
     Path(PATH + f"/figs/results/ecg/pdfs").mkdir(parents=True, exist_ok=True)
 
-    for codename, function_type in zip(['ursula', 'vincent', 'thomas', 'xavier'], ['sawtooth', 'bnn', 'heaviside', 'ecg']):
+    for codename, function_type in zip(['ursula', 'vincent', 'thomas', 'zadok'], ['sawtooth', 'bnn', 'heaviside', 'ecg']):
+    # for codename, function_type in zip(['zadok'], ['ecg']):
         bdnp = torch.load(PATH + f'/saved_models/bdnp-{codename}', weights_only=False, map_location=torch.device('cpu'))
-    
-        xs = torch.linspace(-4.0, 4.0, 250).unsqueeze(-1)
-        samps = 100
 
         if function_type == 'sawtooth':
             x_lim = [-2.0, 2.0]
@@ -181,9 +185,11 @@ def main():
             x_lim = [-4.0, 4.0]
             y_lim = [-4.0, 4.0]
         elif function_type == 'ecg':
-            x_lim = [-2.5, 2.0]
-            y_lim = [-0.6, 1.0]
+            x_lim = [-2.1, 1.1]
+            y_lim = [-0.4, 0.7]
 
+        xs = torch.linspace(x_lim[0], x_lim[1], 250).unsqueeze(-1)
+        samps = 100
         
         # true DGP samples:
         func_samps = get_function_samples(function_type, num_samples=samps, granularity=250)
@@ -220,7 +226,7 @@ def main():
         test_md = build_meta_dataset(num_datasets=5,
                                     n_range=[30, 31] if function_type == 'ecg' else [3, 4],
                                     function_type=function_type,
-                                    x_range=[-1.75, 1.75] if function_type == 'sawtooth' else [-3.5, 3.5],
+                                    x_range=x_lim,
                                     )
         print(f"Plotting {function_type} predictions...")
         for i, (X, y) in tqdm(enumerate(test_md)):
@@ -228,7 +234,7 @@ def main():
             Path(PATH + f"/figs/results/{function_type}/pdfs/{i}").mkdir(parents=True, exist_ok=True)
             for j in range(1, 4):
                 if function_type == 'ecg':
-                    X_c, y_c = X.clone()[0:int(10*j),:], y.clone()[0:int(10*j),:]
+                    X_c, y_c = X.clone()[0:int(1*j),:], y.clone()[0:int(1*j),:]
                 else:
                     X_c, y_c = X.clone()[0:j,:], y.clone()[0:j,:]
                 with torch.no_grad():
