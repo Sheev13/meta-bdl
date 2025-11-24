@@ -92,6 +92,7 @@ def main(
         use_act=False,
         training_steps=10_000,
         batch_size=5,
+        within_task_batch_size=None,
         learning_rate=1e-3,
         final_learning_rate=5e-5,
         loss_function='pp-avi',
@@ -161,6 +162,7 @@ def main(
             md,
             training_steps=training_steps,
             batch_size=batch_size,
+            within_task_batch_size=within_task_batch_size,
             learning_rate=learning_rate,
             final_learning_rate=final_learning_rate,
             num_samples=num_samples,
@@ -278,6 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_act', action='store_true', help='Pass current layer activations to inference nets?')
     parser.add_argument('--training_steps', type=int, default=20_000, help='The number of training steps')
     parser.add_argument('--batch_size', type=int, default=5, help='Number of datasets used to estimate objective at each step')
+    parser.add_argument('--within_task_batch_size', type=int, default=None, help='Size of within-task minibatches')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='(Initial) learning rate')
     parser.add_argument('--final_learning_rate', type=float, default=5e-5, help='Final learning rate, linearly tempered')
     parser.add_argument('--loss_function', type=str, default='pp-avi', help='Objective function (vi or npvi)')

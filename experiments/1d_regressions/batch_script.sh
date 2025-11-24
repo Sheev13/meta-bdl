@@ -22,7 +22,7 @@ conda activate bdnp-environment
 
 # Run your script with arguments
 python experiments/1d_regressions/1d_regressions.py \
-    --codename ursula \
+    --codename minibatch_test \
     --function_type sawtooth \
     --trainable_likelihood_noise \
     --init_likelihood_noise 0.05 \
@@ -33,7 +33,8 @@ python experiments/1d_regressions/1d_regressions.py \
     --beta 1.0 \
     --num_samples 32 \
     --release_prior_at_step 0 \
-    --learning_rate 3e-3 \
+    --within_task_batch_size 25 \
+    --learning_rate 1e-3 \
     --final_learning_rate 1e-4 \
     --train_new_model \
     --use_gpu
