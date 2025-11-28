@@ -224,7 +224,7 @@ def main():
 
         # posterior stuff
         test_md = build_meta_dataset(num_datasets=5,
-                                    n_range=[30, 31] if function_type == 'ecg' else [3, 4],
+                                    n_range=[10, 11],
                                     function_type=function_type,
                                     x_range=x_lim,
                                     )
@@ -232,11 +232,8 @@ def main():
         for i, (X, y) in tqdm(enumerate(test_md)):
             Path(PATH + f"/figs/results/{function_type}/pngs/{i}").mkdir(parents=True, exist_ok=True)
             Path(PATH + f"/figs/results/{function_type}/pdfs/{i}").mkdir(parents=True, exist_ok=True)
-            for j in range(1, 4):
-                if function_type == 'ecg':
-                    X_c, y_c = X.clone()[0:int(1*j),:], y.clone()[0:int(1*j),:]
-                else:
-                    X_c, y_c = X.clone()[0:j,:], y.clone()[0:j,:]
+            for j in range(1, 5):
+                X_c, y_c = X.clone()[0:j,:], y.clone()[0:j,:]
                 with torch.no_grad():
                     pred_samps = bdnp(xs, X_c, y_c, num_samples=samps)[0]
                 fig, ax = plt.subplots(1, 1, figsize=(cell_width, cell_height))
