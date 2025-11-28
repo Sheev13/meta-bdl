@@ -1,0 +1,12 @@
+{
+    "dimensionality": 7,
+    "num_male": 1528,
+    "num_female": 1307,
+    "num_infant": 1342,
+    "cube_halfwidth": 0.9677292153699781,
+    "cube_frac": 0.20789865871833085,
+    "target_frac": 0.7496274217585693,
+    "inside_count": 279,
+    "outside_count_sampled": 727,
+    "outside_ctxt_proportion": 0.31608654750705545
+}
