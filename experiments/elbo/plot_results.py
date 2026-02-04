@@ -26,14 +26,14 @@ def get_colours():
     # for i in range(4):
     #     colours[vi_methods[i]] = vi_colours[i]
 
-    # bdnp_cmap = plt.cm.copper
-    # bdnp_colours = [bdnp_cmap(i) for i in [0.5, 0.7]]
-    # bdnp_methods = ['bdnp', 'meta_bdnp']
+    # bnnp_cmap = plt.cm.copper
+    # bnnp_colours = [bnnp_cmap(i) for i in [0.5, 0.7]]
+    # bnnp_methods = ['bnnp', 'meta_bnnp']
     # for i in range(2):
-    #     colours[bdnp_methods[i]] = bdnp_colours[i]
+    #     colours[bnnp_methods[i]] = bnnp_colours[i]
 
     cmap = plt.cm.RdYlGn
-    methods = ['mfvi', 'ucvi', 'lcvi', 'fcvi', 'spare', 'givi', 'meta_bdnp', 'bdnp']
+    methods = ['mfvi', 'ucvi', 'lcvi', 'fcvi', 'spare', 'givi', 'meta_bnnp', 'bnnp']
     cmap_colours = [cmap(i) for i in np.linspace(0.0, 1.0, len(methods))]
     for i in range(len(methods)):
         if methods[i] != 'spare':
@@ -47,12 +47,12 @@ def main():
     PATH = str(Path(__file__).resolve().parent)
     Path(PATH + "/figs/results").mkdir(parents=True, exist_ok=True)
     seeds = [21, 42, 69, 420]
-    modelname_codename = {"bdnp": "bdnp_final",
+    modelname_codename = {"bnnp": "bdnp_final",
                           "fcvi": "fcvi_final",
                           "givi": "givi_final",
                           "lcvi": "lcvi_final",
                           "mc": "mc_final",
-                          "meta_bdnp": "meta_bdnp_final",
+                          "meta_bnnp": "meta_bdnp_final",
                           "mfvi": "mfvi_final",
                           "ucvi": "ucvi_final"
                           }
@@ -81,8 +81,8 @@ def main():
         lab = model.upper()
         if model.lower() == 'mc':
             lab = 'LML'
-        if model.lower() == 'meta_bdnp':
-            lab = 'BDNP (meta)'
+        if model.lower() == 'meta_bnnp':
+            lab = 'BNNP (meta)'
         axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=20)
         axes.plot(x, y_means.tolist(), color=c)
         axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)
@@ -123,8 +123,8 @@ def main():
         lab = model.upper()
         if model.lower() == 'mc':
             lab = 'LML'
-        if model.lower() == 'meta_bdnp':
-            lab = 'BDNP (meta)'
+        if model.lower() == 'meta_bnnp':
+            lab = 'BNNP (meta)'
         axes.scatter(x, y_means.tolist(), label=lab, color=c, marker=m, zorder=1000, s=20)
         axes.plot(x, y_means.tolist(), color=c)
         axes.fill_between(x, (y_means-2*y_stds).tolist(), (y_means+2*y_stds).tolist(), color=c, alpha=0.2)

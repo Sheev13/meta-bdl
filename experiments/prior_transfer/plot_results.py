@@ -74,7 +74,13 @@ def main():
                 tites = {'gp': 'GP', 'heaviside': 'Heaviside', 'sawtooth': 'Sawtooth'}
                 # ax.set_title(tites[dataset])
             ax.set_xticks(positions)
-            ax.set_xticklabels([method.upper() for method in methods])
+            labes = []
+            for method in methods:
+                if method == 'bdnp':
+                    labes.append('BNNP')
+                else:
+                    labes.append(method.upper())
+            ax.set_xticklabels(labes)
             for j, pos in enumerate(positions):
                 ax.axvspan(pos - 1.0, pos + 1.0, color="gray", alpha=0.1 if j % 2 == 0 else 0)
             ylab = metric.upper() + " (↑)" if metric == 'ppd' else metric.upper() + " (↓)"

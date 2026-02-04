@@ -36,7 +36,7 @@ def init_bdnp(architecture=[48, 48], nonlinearity='silu'):
     else:
         raise NotImplementedError("Conversion to torch.nn module not yet implemented for provided nonlinearity string.")
 
-    bdnp = models.BDNP(x_dim=3,
+    bdnp = models.BNNP(x_dim=3,
                    y_dim=1,
                    hidden_dims=architecture,
                    prior_type=1,

@@ -158,7 +158,7 @@ def main(codename=None,
     elif model_name == 'givi':
         model_class = baselines.GIVIBNN
     elif 'bdnp' in model_name.lower():
-        model_class = models.BDNP
+        model_class = models.BNNP
     elif model_name == 'mc':
         model_class = GaussianBNNPrior
 

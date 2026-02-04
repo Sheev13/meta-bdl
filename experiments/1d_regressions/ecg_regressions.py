@@ -87,7 +87,7 @@ def main(codename: Optional[str] = None, preload: Optional[str] = None):
         bdnp = torch.load(PATH + f"/saved_models/bdnp-{preload}", weights_only=False)
     else:
         architecture = [64, 64]
-        bdnp = models.BDNP(x_dim=1,
+        bdnp = models.BNNP(x_dim=1,
                         y_dim=1,
                         likelihood=models.GaussianLikelihood(1, sigma_y=0.05, train=True),
                         hidden_dims=architecture,

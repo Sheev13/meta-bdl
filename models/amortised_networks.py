@@ -6,7 +6,7 @@ from . import likelihoods
 from .priors import FCNetworkwisePrior
 from .amortised_layers import AmortisedLinearLayer, AmortisedAttentionBlock
 
-class BDNP(nn.Module):
+class BNNP(nn.Module):
     def __init__(self,
                  x_dim: int,
                  y_dim: int,
@@ -212,7 +212,7 @@ class BDNP(nn.Module):
 
 
 
-class BDAM(nn.Module):
+class BNAM(nn.Module):
     def __init__(self,
                  x_dim: int,
                  y_dim: int,

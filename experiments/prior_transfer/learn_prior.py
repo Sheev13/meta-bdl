@@ -53,7 +53,7 @@ def init_bdnp(architecture=[250, 250, 250], nonlinearity='relu'):
     else:
         raise NotImplementedError("Conversion to torch.nn module not yet implemented for provided nonlinearity string.")
 
-    bdnp = models.BDNP(x_dim=1,
+    bdnp = models.BNNP(x_dim=1,
                    y_dim=1,
                    hidden_dims=architecture,
                    prior_type=1,

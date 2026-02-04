@@ -94,7 +94,7 @@ def main(model: str = None,
                         'use_final_layer_noise': False,
                         'scale_prior': True,
                         'nonlinearity': nl}
-        m = models.BDNP(**model_kwargs)
+        m = models.BNNP(**model_kwargs)
         if prior_trainability != 0.0:
             if prior_trainability == 1.0:
                 m.trainable_prior(True)

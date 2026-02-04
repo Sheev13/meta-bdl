@@ -69,6 +69,8 @@ def main(codename='firefly', swissless=True):
                 labels[i] = 'SGHMC'
             if labels[i] == 'LMC':
                 labels[i] = 'SGLD'
+            if labels[i] == 'BDNP':
+                labels[i] = 'BNNP'
         ax.set_xticklabels(labels)
         xticks = ax.get_xticklabels()
         text = xticks[-1]

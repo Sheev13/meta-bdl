@@ -141,7 +141,7 @@ def main(prior=None,
     elif model_name == 'givi':
         model_class = baselines.GIVIBNN
     elif model_name == 'bdnp':
-        model_class = models.BDNP
+        model_class = models.BNNP
     elif model_name == 'hmc':
         model_class = baselines.HMC_BNN
     elif model_name == 'lmc':

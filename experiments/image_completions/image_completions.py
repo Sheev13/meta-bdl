@@ -124,7 +124,7 @@ def main(
         if prev_codename is not None:
             bdnp = torch.load(PATH + f'/saved_models/bdnp-{prev_codename}', weights_only=False)
         else:
-            bdnp = models.BDNP(x_dim=2,
+            bdnp = models.BNNP(x_dim=2,
                             y_dim=1,
                             hidden_dims=architecture,
                             prior_type=1,

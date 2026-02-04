@@ -145,7 +145,7 @@ def main(exclude_bnns=False):
             mid = (bdnp_idx[0]-0.5 + bdnp_idx[-1]+0.5) / 2
             h = -0.25
             ax.annotate(
-                "BDNP",
+                "BNNP",
                 xy=(mid, h - 0.075),
                 xycoords=('data', 'axes fraction'),
                 ha='center', va='top', fontsize=label_size,
