@@ -1,6 +1,6 @@
 # Amortising Inference and Meta-Learning Priors in Neural Networks
 
-This is the official codebase corresponding to the above-titled paper, which was accepted at ICLR 2026 and authored by Tommy Rochussen and Vincent Fortuin.
+This is the official codebase corresponding to the above-titled paper, which was accepted at ICLR 2026 and authored by Tommy Rochussen and Vincent Fortuin. Paper can be found [here](https://arxiv.org/abs/2602.08782v1).
 
 Any questions, reach out to me (Tommy) at 'rochussen' + 'tn' + '@' + 'gmail' + '.' + 'com'. 
 
